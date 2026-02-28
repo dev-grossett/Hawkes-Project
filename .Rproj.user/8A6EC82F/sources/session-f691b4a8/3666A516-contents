@@ -1,0 +1,55 @@
+
+
+/* --- 1. THEOREM & LEMMA (AMS "Plain" Style: Bold Title, Italic Body) --- */
+.theorem, .lemma, .proposition, .corollary,
+[id^="thm-"], [id^="lem-"], [id^="prp-"], [id^="cor-"] {
+  font-style: italic;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+/* --- 2. DEFINITION & EXAMPLE (AMS "Definition" Style: Bold Title, Upright Body) --- */
+.definition, .example,
+[id^="def-"], [id^="exm-"] {
+  font-style: normal;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+/* --- 3. UNIFORM TITLE STYLING (Bold & Upright) --- */
+.theorem-title, .lemma-title, .definition-title, .example-title, 
+.proposition-title, .corollary-title, .quarto-float-caption {
+  font-style: normal !important;
+  font-weight: bold !important;
+  display: inline;
+}
+
+/* Ensure the title isn't followed by a line break (LaTeX style) */
+.quarto-float-caption {
+  margin-bottom: 0;
+}
+
+/* --- 4. PROOF STYLE (Italic Title, Upright Body, QED Square) --- */
+.proof {
+  font-style: normal;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+.proof > .proof-title {
+  font-style: italic !important;
+  font-weight: normal !important;
+}
+
+/* LaTeX QED Symbol (Hollow Square) */
+.proof > *:last-child::after {
+  content: " \25fb"; 
+  float: right;
+  margin-top: 0.5em;
+}
+
+/* --- 5. DEFINITION SYMBOL (Optional: Your requested Diamond) --- */
+.definition > *:last-child::after {
+  content: " \25c7"; 
+  float: right;
+}

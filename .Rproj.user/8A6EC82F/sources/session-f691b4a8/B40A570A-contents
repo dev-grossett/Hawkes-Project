@@ -1,0 +1,400 @@
+---
+title: "Hawkes Notes & Exploration"
+author: "Devon Grossett"
+format:
+  html:
+    toc: true
+    number-sections: true
+    code-fold: show
+    css: styles.css
+    theme: cosmo
+    include-in-header:
+      text: |
+        <script>
+        window.MathJax = {
+          tex: {
+            macros: {
+              dd: "{\\mathrm{d}}"
+            }
+          }
+        };
+        </script>
+        <script id="MathJax-script" async src="https://cdn.jsdelivr.net"></script>
+  # pdf:
+  #   toc: true
+  #   number-sections: true
+  #   documentclass: article
+execute:
+  freeze: auto
+bibliography: Hawkes_Bibtex.bib
+crossref:
+  eq-prefix: "Equation"
+  thm-prefix: "Theorem"
+  def-prefix: "Definition"
+---
+
+These are some notes taken while reading through @Laub2021_ElementsHawkes
+
+## Point Process Background
+
+### Counting and Point Process Background
+
+Some definitions that are used throughout
+
+::: {#def-counting_process .definition}
+## Counting Process and History
+
+A *counting process* is a stochastic process $(N(t): t \geq 0)$ taking values in
+$\mathbb{N}_0$ that satisfy $N(0) = 0$, is a.s. finite, and is a right 
+continuous step function with increments of size $+1$
+
+Further, denote by $(\mathcal{H}(u): u \geq 0)$ the *history* of the arrivals up
+to time $u$. $\mathcal{H}(u)$ is a filtration, that is, an increasing sequence 
+of $\sigma$-algebras.
+:::
+
+We can also consider the arrival times $T = \{ T_1, T_2, \ldots \}$ at which the 
+process $N(t)$ jumps. The process defined as these arrival times is called a 
+point process.
+
+::: {#def-point_process .definition}
+## Point Process
+
+If a sequence of random variables $\mathbf{T} = \{T_1, T_2, \ldots \}$, taking 
+values in $[0, \infty)$, has $\mathbb{P}(0 \leq T_1 \leq T_2 \leq \ldots) = 1$, 
+and the number of points in a bounded region is a.s. finite, then $\mathbf{T}$ 
+is a (*simple*) point process.
+:::
+
+These terms are often used interchangeably, although it should be clear from the
+context whether $N(t)$ or $\mathbf{T}$ is being discussed.
+
+::: {#def-poisson_process .definition}
+## Poisson Process
+
+A counting process $(N(t): t \geq 0)$ is a homogeneous Poisson process with rate
+$\lambda > 0$ if
+
+1.  For any interval $I$, $N(I) \sim \mathrm{Pois}(\lambda |I|)$
+2.  For any $n$ disjoint intervals $I_1, I_2, \ldots, I_n$, the random variables
+$N(I_1), N(I_2), \ldots, N(I_n)$ are independent.
+:::
+
+From this definition we get $$
+\mathbb{P}(N(t) = n) = \frac{(\lambda t)^n e^{-\lambda t}}{n!}, \quad 
+n=0,1,2,\ldots
+$$ {#eq-pois_dist}
+
+### Conditional Intensity Functions
+
+Given the history up until the last arrival $u$, $\mathcal{H}(u)$, define the 
+conditional cumulative distribution (CDF) function of the next arrival time 
+$T_{k+1}$ as 
+$$
+F(t \mid \mathcal{H}(u)) = \int_u^t \mathbb{P}(T_{k+1} \in [s, s + \dd s] 
+\mid \mathcal{H}(u)) \, \dd s = \int_u^t f(s \mid \mathcal{H}(u)) \, \dd s
+$$
+
+The joint PDF for realisations $\{ t_1, t_2, \ldots, t_k \}$ is then, by the 
+chain rule for probabilities $$
+f(t_1, t_2, \ldots, t_k) = \prod_{i=1}^k f(t_i \mid \mathcal{H}(t_{i-1}))
+$$ {#eq-joint_pdf}
+
+It's very common to suppress notation of conditioning upon $\mathcal{H}(u)$ 
+using a superscript asterisk notation, e.g. 
+$f^*(t) \coloneqq f(t \mid \mathcal{H}(u))$.
+
+It is often more convenient to work with the conditional intensity function 
+(also known as the hazard function in some fields) $\lambda^*(t)$ defined as 
+$$
+\lambda^*(t) = \frac{f^*(t)}{1 - F^*(t)}
+$$ {#eq-hazard}
+
+However there is another representation for the conditional intensity as the 
+expected rate of arrivals conditioned on $\mathcal{H}(t)$:
+
+::: {#def-conditional_intensity .definition}
+## Conditional Intensity Function
+
+Consider a counting process $N$ with associated histories $\mathcal{H}$. If a 
+non-negative function $\lambda^*(t)$ exists such that 
+$$
+\lambda^*(t) = \lim_{h \downarrow 0} \frac{\mathbb{E}[N(t + h) - N(t) 
+\mid \mathcal{H}(t)]}{h}
+$$ which only relies of information of $N$ in the past (that is, 
+$\lambda^*(t)$ is $\mathcal{H}(t)$-measurable), then it is called the 
+conditional intensity function of $N$.
+:::
+
+Lastly, we define the compensator, which is frequently used in parameter
+estimation and goodness of fit testing of point processes.
+
+::: {#def-compensator .definition}
+## Compensator
+
+For a counting process $N$ the non-decreasing function $$
+\Lambda(t) = \int_0^t \lambda^*(s) \dd s
+$$ is called the compensator of the counting process.
+:::
+
+## Hawkes Process Background
+
+The Hawkes process is a model for a ‘self-exciting’ counting process, where the 
+history of past arrivals increases the chance of subsequent arrivals for a
+period of time.
+
+The Hawkes process is defined by its conditional intensity function, originally
+given in @Hawkes1971_SelfExcitingSpectra as
+
+::: {#def-hawkes_process .definition}
+## Hawkes Process
+
+A Hawkes process is a counting process $(N(t): t \geq 0)$ whose conditional 
+intensity function for $t \ge 0$ is 
+$$
+\lambda^{*}_{t} = \lambda + \sum_{t_i<t} \mu (t - t_i)
+$$ {#eq-hp_lambda} 
+where $\lambda > 0$ is the background arrival rate, 
+$\mu : (0,\infty) \rightarrow [0,\infty)$ is the excitation function (or 
+kernel), and $t_i$ are all the arrival times in the history of the process 
+$\mathcal{H}(u)$.
+:::
+
+The most common choice of $\mu$ is the exponentially decaying kernel 
+$$
+\mu(t) = \alpha e^{-\beta t} , \quad \alpha,\beta > 0
+$$
+
+An alternative way to represent a Hawkes process is through a branching process
+known as an immigrant-birth process (@Hawkes1974_ClusterRepresentation). In this
+view, the immigration process is a homogeneous Poisson process with rate 
+$\lambda$, and the arrival of an individual from the immigrant process at time 
+$s$ initiates a non-homogeneous Poisson process of births with intensity 
+$\mu(t - s)$ for $t > s$, which subsequently may result in further descendants. 
+Each arrival generates a Poisson-distributed number of first-generation 
+offspring with mean $\eta$, where $\eta$ is known as the branching ratio and is 
+given by
+
+$$
+\eta = \int_0^{\infty}\mu(t)dt
+$$ {#eq-hp_branchingratio}
+
+For the process to be stationary with finite mean, the condition $\eta < 1$ is 
+necessary and sufficient.
+
+## Maximum Likelihood Estimation
+
+Below is an example of estimating a parameter from $\mathrm{Exp(\lambda)}$ data 
+using Maximum Likelihood Estimation (MLE). For this problem
+$$
+\begin{align}
+L(\lambda \mid \mathbf{t}) &= \prod_{i=1}^n \lambda e^{-\lambda t_i} \\
+l(\lambda \mid \mathbf{t}) &= n \log \lambda - \lambda \sum_{i=1}^n t_i
+\end{align}
+$$
+
+```{r}
+# generate Exp(λ) variables, with each column a new realisation
+generate_exp_matrix <- function(n_obs, n_trials, lambda_true, seed = NULL) {
+  # set seed if given
+  if (!is.null(seed)) {set.seed(seed)}
+  
+  # simulate matrix of exponential samples
+  t_mat <- matrix(
+    rexp(n_obs*n_trials, rate = lambda_true),
+    nrow = n_obs,
+    ncol = n_trials
+  )
+  return(t_mat)
+}
+
+# log-likelihood of Exp(λ) data
+exp_loglik <- function(lambda, t) {
+  n <- length(t)
+  n*log(lambda) - lambda*sum(t)
+}
+
+# since optim minimises by default
+exp_negloglik <- function(lambda, t) {
+  -exp_loglik(lambda, t)
+}
+
+# take t matrix and create a dataframe of mle parameter estimates and std errors
+mle_results <- function(t_mat) {
+  n <- ncol(t_mat)
+  
+  # to store results
+  results <- data.frame(
+    trial = 1:n, 
+    sample_size = rep(nrow(t_mat), n),
+    mean = rep(NA, n),
+    se = rep(NA, n),
+    lower = rep(NA, n),
+    upper = rep(NA, n)
+  )
+  
+  # mle fit for each trial
+  for (i in 1:n) {
+    fit <- optim(
+      par = 1,
+      fn = exp_negloglik,
+      t = t_mat[, i],
+      method = "L-BFGS-B",
+      lower = 1e-8,
+      hessian = TRUE
+    )
+    results[i, "mean"] <- fit$par
+    results[i, "se"] <- sqrt(1 / fit$hessian) 
+  }
+  results$lower <- results$mean - 1.96*results$se
+  results$upper <- results$mean + 1.96*results$se
+  
+  return(results)
+}
+
+lambda_true <- 2
+t_mat <- generate_exp_matrix(
+  n_obs = 100, 
+  n_trials = 500, 
+  lambda_true = lambda_true, 
+  seed = 5
+)
+results <- mle_results(t_mat)
+```
+
+```{r, echo=FALSE}
+summary_table <- data.frame(
+  Parameter = "λ",
+  MC_Trials = nrow(results),
+  Sample_Size = max(results$sample_size),
+  Mean = mean(results$mean),
+  Bias = mean(results$mean) - lambda_true,
+  SD = sd(results$mean),
+  RMSE = sqrt(mean((results$mean - lambda_true)^2)),
+  Coverage_95 = mean(results$lower <= lambda_true &
+                  lambda_true <= results$upper),
+  MC_Error = sd(results$mean) / sqrt(nrow(results))
+)
+
+knitr::kable(
+  summary_table,
+  digits = c(NA, 0, 0, 4, 4, 4, 4, 4, 4),
+  col.names = c(
+    "Parameter", 
+    "MC Trials",
+    "Sample Size",
+    "Mean", 
+    "Bias", 
+    "SD", 
+    "RMSE", 
+    "95% Coverage", 
+    "MC Error"
+  )
+)
+```
+
+
+```{r, echo=FALSE}
+cover <- results$lower <= 2 & results$upper >= 2
+cols <- ifelse(cover, "black", "red")
+widths <- ifelse(cover, 0.5, 1.5) 
+
+plot(
+  results$trial,
+  results$mean,
+  pch = 16,
+  cex = 0.6,
+  col = cols,
+  ylim = range(results$lower, results$upper),
+  xlab = "Simulation",
+  ylab = expression(hat(lambda)),
+  main = "Coverage of 95% CI"
+)
+
+segments(
+  results$trial, results$lower,
+  results$trial, results$upper,
+  col = cols, lwd = widths
+)
+
+abline(h = 2, lwd = 2)
+```
+
+
+::: {#thm-point_process_likelihood}
+## Point Process Likelihood
+
+Let $N$ be a simple point process with conditional intensity $\lambda^*(t)$ and
+compensator $\Lambda(t)$. If we observe all the arrival times over the time 
+period $[0, T ]$, denoted $\{t_1, \ldots, t_{N(T)} \}$, then the likelihood 
+function $L$ for $N$ is 
+$$
+L = \left[ \prod_{i=1}^{N(T)} \lambda^*(t_i) \right] e^{-\Lambda(T)}
+$$ {#eq-pp_likelihood}
+and the log-likelihood function is
+$$
+l = \sum_{i=1}^{N(T)} \log(\lambda^*(t_i)) - \Lambda(t)
+$$ {#eq-pp_loglikelihood}
+:::
+
+### Hawkes Process MLE
+To get the form of the Hawkes likelihood, first note that the integral in 
+$\Lambda(T)$ over $[0, T]$ can be broken down into 
+$$
+[0, t_1] \cup (t_1,t_2] \cup \ldots \cup (t_{N(T) - 1}, t_{N(T)}] \cup (t_{N(T)}, T]
+$$ 
+and therefore 
+$$
+\Lambda(T) = \int_0^{t_i} \lambda^*(s) \dd s + \sum_{i=1}^{N(T)-1} \int_{t_i}^{t_i + 1} \lambda^*(s) \dd s + \int_{t_{N(T)}}^{T} \lambda^*(s) \dd s
+$$
+
+Substituting the Hawkes conditional intensity in @eq-hp_lambda, and using 
+$M(t) \coloneqq \int_0^t \mu(s) \dd s$, the integral term can be written as 
+$$
+\begin{align}
+\int_{t_i}^{t_{i+1}} \lambda^*(s) \dd s &= \int_{t_i}^{t_{i+1}} 
+\left[ \lambda + \sum_{t_j < s} \mu(s - t_j) \right] \dd s 
+\\
+&= \lambda (t_{i+1} - t_i) + \sum_{j=1}^i \int_{t_i}^{t_{i+1}} \mu(s - t_j) 
+\dd s 
+\\
+&= \lambda (t_{i+1} - t_i) + \sum_{j=1}^i \left[ M(t_{i+1} - t_j) - 
+M(t_i - t_j) \right]
+\end{align}
+$$ 
+This summation holds for $i=1,\ldots,N(T)-1$, for $i=0$ where the summation term
+disappears due to no events in the history, and for $i = N(T)$ if we abuse 
+notation a little and say $T=t_{N(t)+1}$. Therefore we can write
+
+$$
+\begin{align}
+\Lambda(T) &= \sum_{i=1}^{N(T)} \left\{ \lambda(t_{i+1} - t_i) + 
+\sum_{j=1}^i [M(t_{i+1} - t_j) - M(t_i - t_j)] \right\} 
+\\ 
+&= \lambda T + \sum_{i=1}^{N(T)} \sum_{j=1}^i [M(t_{i+1} - t_j) - M(t_i - t_j)]
+\\
+&= \lambda T + \sum_{i=1}^{N(T)}  [M(T - t_i) - M(0)] 
+= \lambda T + \sum_{i=1}^{N(T)}  M(T - t_i)
+\end{align}
+$$ {#eq-hawkes_compensator}
+
+Thee log-likelihood (@eq-pp_loglikelihood), combined with the this form of the 
+Hawkes compensator $\Lambda(T)$ and the Hawkes conditional intensity 
+(@eq-hp_lambda) gives us
+
+$$
+l = \sum_{i=1}^{N(T)} \log \left[ \lambda + \sum_{j=1}^{i-1} \mu(t_i - t_j) 
+\right] - \lambda T - \sum_{i=1}^{N(T)}  M(T - t_i)
+$$
+The double sum will mean that for a numeric optimisation routine, we will have 
+to evaluate a $\mathcal{O}([N(T)]^2)$ function for each optimisation step which 
+will scale poorly.
+
+#### Example Implementation
+
+```{r}
+
+```
+
+
+## References {.unnumbered}

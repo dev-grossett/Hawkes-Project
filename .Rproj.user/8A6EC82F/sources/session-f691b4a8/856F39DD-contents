@@ -1,0 +1,8 @@
+
+/* Target the definition environment class */
+.definition > *:last-child::after {
+  content: " \25c7"; /* Unicode for white diamond (◇) */
+  float: right;
+}
+
+
