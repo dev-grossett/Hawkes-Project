@@ -1,0 +1,8 @@
+^LICENSE\.md$
+^.*\.qmd$
+^.*\.bib$
+^styles\.css$
+^.*\.html$
+^Hawkes_notes_and_exploration_files$
+^.*\.Rproj$
+^\.Rproj\.user$
