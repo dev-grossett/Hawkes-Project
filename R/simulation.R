@@ -23,33 +23,38 @@
 #' # Simulate a homogeneous Poisson process with λ = 2
 #' x <- simulate_pp(T = 5, fn = 2)
 sim_pp <- function(T, fn, M = NULL) {
-  
-  if (is.numeric(fn)) {
-    # number of events in interval of length T is Poisson(λT) distributed
-    N_T <- rpois(1, fn*T)
-    # given N(T) = n, the times of arrivals tn,...,t_n are U(0, T) distributed
-    arrival_times <- sort(runif(N_T, 0, T))
-    return(arrival_times)
-  }
-  
-  # some guardrails
-  if (is.null(M)) {
-    stop("For inhomogeneous case, 'sim_pp' requires an upper bound of the function over [0, T].")
-  }
-  
-  if (!is.function(fn)) {
-    stop("'fn' needs to be a non-negative function or numeric.")
-  }
-  
-  # simulate homogeneous poisson process with rate M on [0, T]
-  N_T <- rpois(1, M*T)
-  unthinned_arrival_times <- sort(runif(N_T, 0, T))
-  # keep arrivals with some probability
-  u <- runif(N_T, 0, M)
-  keep <- ifelse(u <= fn(unthinned_arrival_times), TRUE, FALSE)
-  
-  sort(unthinned_arrival_times[keep])
-  
+    
+    # Homogeneous Case 
+    if (is.numeric(fn)) {
+      stopifnot(
+        "'T' must be positive" = is.numeric(T) && length(T) == 1 && T > 0,
+        "'fn' must be a single non-negative number" = 
+          length(fn) == 1 && !is.na(fn) && fn >= 0
+      )
+      N_T <- rpois(1, fn * T)
+      return(sort(runif(N_T, 0, T)))
+    }
+    
+    # Inhomogeneous Case Guardrails
+    stopifnot(
+      "'T' must be positive" = is.numeric(T) && length(T) == 1 && T > 0,
+      "'fn' must be a function" = is.function(fn),
+      "Inhomogeneous simulation requires a single numeric 'M' >= 0" = 
+        is.numeric(M) && length(M) == 1 && !is.na(M) && M >= 0
+    )
+    
+    # simulate homogeneous poisson process with rate M on [0, T]
+    N_T <- rpois(1, M * T)
+    if (N_T == 0) return(numeric(0)) # Handle edge case of 0 arrivals
+    
+    unthinned_arrival_times <- sort(runif(N_T, 0, T))
+    
+    # keep arrivals with some probability
+    # fn() must be able to handle the vector 'unthinned_arrival_times'
+    u <- runif(N_T, 0, M)
+    keep <- u <= fn(unthinned_arrival_times)
+    
+    unthinned_arrival_times[keep]
 }
 
 
@@ -61,13 +66,15 @@ sim_pp <- function(T, fn, M = NULL) {
 #' in this case we have no a.s. asymptotic bound M for the conditional intensity 
 #' \eqn{\lambda^*(t)}. Instead, we restrict the function space to be only 
 #' non-increasing functions of $t$, which allows us to simply use the value of
-#' `fn(t_i)` where $t_i$ is the time just after an arrival.
+#' `fn(t_i)` where $t_i$ is the time just after an arrival, which is updated 
+#' with each arrival
 #'
 #' @param T A non-negative numeric value - the end of the interval \eqn{[0,T]}.
 #' @param lambda A non-negative numeric value - the background arrival 
 #'   component \eqn{\lambda} of the Hawkes conditional intensity
-#' @param mu A non-negative function - the excitation function/kernel 
-#'   \eqn{\mu(\cdot)} of the Hawkes conditional intensity
+#' @param mu A non-negative, non-increasing function - the excitation 
+#'   function/kernel \eqn{\mu(\cdot)} of the Hawkes conditional intensity. Must 
+#'   be a vectorised function
 #'
 #' @return A vector of simulated arrival times from the process.
 #'
@@ -79,30 +86,59 @@ sim_pp <- function(T, fn, M = NULL) {
 sim_hp <- function(T, lambda, mu) {
   
   # some guardrails
-  if (!is.function(mu)) {
-    stop("'mu' needs to be a non-negative function.")
-  }
+  stopifnot(
+    "'T' must be a single numeric" = 
+      is.numeric(T) && length(T) == 1 && !is.na(T),
+    
+    "'T' must be positive" 
+      = T > 0,
+    
+    "'lambda' must be a single numeric" 
+      = is.numeric(lambda) && length(lambda) == 1 && !is.na(lambda),
+    
+    "'lambda' must be non-negative" 
+      = lambda >= 0,
+    
+    "'mu' must be a function" 
+      = is.function(mu)
+  )
   
-  if (!is.numeric(lambda) & lambda < 0) {
-    stop("'lambda' needs to be a non-negative numeric.")
-  }
+  # Start with a sensible ~8KB buffer for vector (will double later if required)
+  arrival_times <- numeric(1024)
+  t <- 0
+  count <- 0
   
   # initialise simulation objects
   arrival_times <- c()
   t <- 0
   while (t < T) {
+    # Use only the filled portion for intensity
+    current_arrivals <- if (count == 0) numeric(0) else arrival_times[1:count]
+    
     # find new upper bound
     M <- lambda + sum(mu(t - arrival_times))
+    if (is.na(M)) {
+      stop("Intensity calculation returned NA. Check your 'mu' function.")
+    }
+    
     # generate next candidate point
     t <- t + rexp(1, M)
-    # keep it with some probability
-    u <- runif(1, 0, M)
+    if (t > T) break
     
-    if (t < T & u <= (lambda + sum(mu(t - arrival_times)))) {
-      arrival_times <- c(arrival_times, t)
+    current_intensity <- lambda + sum(mu(t - arrival_times))
+    # keep it with some probability
+    if (runif(1, 0, M) <= current_intensity) {
+      count <- count + 1
+      
+      # double the capacity of arrival_times if out of space
+      if (count > length(arrival_times)) {
+        arrival_times <- c(arrival_times, numeric(length(arrival_times)))
+      }
+      arrival_times[count] <- t
     }
   }
   
-  arrival_times
+  # trim trailing zeros
+  if (count == 0) numeric(0) else arrival_times[1:count]
   
 }
