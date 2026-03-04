@@ -20,10 +20,6 @@ format:
         };
         </script>
         <script id="MathJax-script" async src="https://cdn.jsdelivr.net"></script>
-  # pdf:
-  #   toc: true
-  #   number-sections: true
-  #   documentclass: article
 execute:
   freeze: auto
 bibliography: Hawkes_Bibtex.bib
