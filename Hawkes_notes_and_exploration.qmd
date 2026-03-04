@@ -5,7 +5,7 @@ format:
   html:
     toc: true
     number-sections: true
-    code-fold: show
+    code-fold: true
     css: styles.css
     theme: cosmo
     include-in-header:
@@ -44,9 +44,9 @@ Some definitions that are used throughout
 ::: {#def-counting_process .definition}
 ## Counting Process and History
 
-A *counting process* is a stochastic process $(N(t): t \geq 0)$ taking values in
-$\mathbb{N}_0$ that satisfy $N(0) = 0$, is a.s. finite, and is a right 
-continuous step function with increments of size $+1$
+A *counting process* is a stochastic process $(N(t): t \geq 0)$ (often shortened 
+to $N_t$) taking values in $\mathbb{N}_0$ that satisfy $N(0) = 0$, is a.s. 
+finite, and is a right continuous step function with increments of size $+1$
 
 Further, denote by $(\mathcal{H}(u): u \geq 0)$ the *history* of the arrivals up
 to time $u$. $\mathcal{H}(u)$ is a filtration, that is, an increasing sequence 
@@ -132,7 +132,8 @@ estimation and goodness of fit testing of point processes.
 ::: {#def-compensator .definition}
 ## Compensator
 
-For a counting process $N$ the non-decreasing function $$
+For a counting process $N$ the non-decreasing function 
+$$
 \Lambda(t) = \int_0^t \lambda^*(s) \dd s
 $$ is called the compensator of the counting process.
 :::
@@ -143,8 +144,8 @@ The Hawkes process is a model for a ‘self-exciting’ counting process, where 
 history of past arrivals increases the chance of subsequent arrivals for a
 period of time.
 
-The Hawkes process is defined by its conditional intensity function, originally
-given in @Hawkes1971_SelfExcitingSpectra as
+The Hawkes process is defined by its conditional intensity function (originally
+given in @Hawkes1971_SelfExcitingSpectra)
 
 ::: {#def-hawkes_process .definition}
 ## Hawkes Process
@@ -187,10 +188,10 @@ necessary and sufficient.
 Below is an example of estimating a parameter from $\mathrm{Exp(\lambda)}$ data 
 using Maximum Likelihood Estimation (MLE). For this problem
 $$
-\begin{align}
+\begin{aligned}
 L(\lambda \mid \mathbf{t}) &= \prod_{i=1}^n \lambda e^{-\lambda t_i} \\
 l(\lambda \mid \mathbf{t}) &= n \log \lambda - \lambda \sum_{i=1}^n t_i
-\end{align}
+\end{aligned}
 $$
 
 ```{r}
@@ -200,12 +201,11 @@ generate_exp_matrix <- function(n_obs, n_trials, lambda_true, seed = NULL) {
   if (!is.null(seed)) {set.seed(seed)}
   
   # simulate matrix of exponential samples
-  t_mat <- matrix(
+  matrix(
     rexp(n_obs*n_trials, rate = lambda_true),
     nrow = n_obs,
     ncol = n_trials
   )
-  return(t_mat)
 }
 
 # log-likelihood of Exp(λ) data
@@ -249,7 +249,7 @@ mle_results <- function(t_mat) {
   results$lower <- results$mean - 1.96*results$se
   results$upper <- results$mean + 1.96*results$se
   
-  return(results)
+  results
 }
 
 lambda_true <- 2
@@ -269,7 +269,8 @@ summary_table <- data.frame(
   Sample_Size = max(results$sample_size),
   Mean = mean(results$mean),
   Bias = mean(results$mean) - lambda_true,
-  SD = sd(results$mean),
+  # SD = sd(results$mean),
+  SD = sqrt(mean((results$mean - mean(results$mean))^2)),
   RMSE = sqrt(mean((results$mean - lambda_true)^2)),
   Coverage_95 = mean(results$lower <= lambda_true &
                   lambda_true <= results$upper),
@@ -329,29 +330,95 @@ compensator $\Lambda(t)$. If we observe all the arrival times over the time
 period $[0, T ]$, denoted $\{t_1, \ldots, t_{N(T)} \}$, then the likelihood 
 function $L$ for $N$ is 
 $$
-L = \left[ \prod_{i=1}^{N(T)} \lambda^*(t_i) \right] e^{-\Lambda(T)}
+L = \left[ \prod_{i=1}^{N_T} \lambda^*(t_i) \right] e^{-\Lambda(T)}
 $$ {#eq-pp_likelihood}
 and the log-likelihood function is
 $$
-l = \sum_{i=1}^{N(T)} \log(\lambda^*(t_i)) - \Lambda(t)
+l = \sum_{i=1}^{N_T} \log(\lambda^*(t_i)) - \Lambda(T)
 $$ {#eq-pp_loglikelihood}
 :::
+
+### Example: Poisson Process Likelihood
+
+For a simple example we'll estimate a Poisson process' parameter using MLE and
+the form of the log-likelihood in @eq-pp_loglikelihood. In this case, 
+$\lambda^*(t) = \lambda$ and the compensator $\Lambda(t) = \lambda t$. Therefore
+$$l = N_T \log \lambda - \lambda T$$
+
+The value of $\lambda$ that maximises this is easily found by setting 
+$\frac{\dd l}{\dd \lambda}=0$ and solving for $\lambda$, giving 
+$$
+\hat{\lambda} = N_T/T
+$$
+
+```{r}
+# simulate a poisson process over [0, T]
+sim_poisson_process <- function(lambda, T, seed = NULL) {
+  # set seed if given
+  if (!is.null(seed)) {set.seed(seed)}
+  
+  # number of events in interval of length T is Poisson(λT) distributed
+  N_T <- rpois(1, lambda*T)
+  
+  # given N(T) = n, the times of arrivals tn,...,t_n are U(0, T) distributed
+  sort(runif(N_T, 0, T))
+}
+
+lambda <- 2
+T <- 10
+arrival_times <- sim_poisson_process(lambda, T, seed = 6)
+
+plot(c(0, arrival_times), 0:length(arrival_times), type = "s", 
+     xlab = "Time (t)", ylab = "Number of events N(t)",
+     main = paste0("Simulated Poisson Process (λ = ", lambda, ")"))
+
+# log-likelihood of Poisson process arrival time data
+poisprocess_loglik <- function(lambda, arrival_times, T) {
+  N_T <- length(arrival_times)
+  N_T*log(lambda) - lambda*T
+}
+
+# since optim minimises by default
+poisprocess_negloglik <- function(lambda, arrival_times, T) {
+  -poisprocess_loglik(lambda, arrival_times, T)
+}
+
+fit <- optim(
+  par = 1, 
+  fn = poisprocess_negloglik, 
+  arrival_times = arrival_times,
+  T = T,
+  method = "L-BFGS-B",
+  lower = 1e-8,
+  hessian = TRUE
+)
+
+cat(
+  "Analytic Solution = ", 
+  length(arrival_times)/T, "±", round(sqrt(length(arrival_times))/T, 3), "\n", 
+  "Numeric MLE = ", fit$par, "±", round(1/sqrt(fit$hessian), 3)
+)
+```
+
+
 
 ### Hawkes Process MLE
 To get the form of the Hawkes likelihood, first note that the integral in 
 $\Lambda(T)$ over $[0, T]$ can be broken down into 
 $$
-[0, t_1] \cup (t_1,t_2] \cup \ldots \cup (t_{N(T) - 1}, t_{N(T)}] \cup (t_{N(T)}, T]
+[0, t_1] \cup (t_1,t_2] \cup \ldots \cup (t_{N_T - 1}, t_{N_T}] 
+\cup (t_{N_T}, T]
 $$ 
 and therefore 
 $$
-\Lambda(T) = \int_0^{t_i} \lambda^*(s) \dd s + \sum_{i=1}^{N(T)-1} \int_{t_i}^{t_i + 1} \lambda^*(s) \dd s + \int_{t_{N(T)}}^{T} \lambda^*(s) \dd s
+\Lambda(T) = \int_0^{t_i} \lambda^*(s) \dd s + \sum_{i=1}^{N_T-1} 
+\int_{t_i}^{t_i + 1} \lambda^*(s) \dd s + \int_{t_{N_T}}^{T} \lambda^*(s) \dd s
 $$
 
 Substituting the Hawkes conditional intensity in @eq-hp_lambda, and using 
 $M(t) \coloneqq \int_0^t \mu(s) \dd s$, the integral term can be written as 
 $$
-\begin{align}
+\begin{aligned}
 \int_{t_i}^{t_{i+1}} \lambda^*(s) \dd s &= \int_{t_i}^{t_{i+1}} 
 \left[ \lambda + \sum_{t_j < s} \mu(s - t_j) \right] \dd s 
 \\
@@ -360,41 +427,35 @@ $$
 \\
 &= \lambda (t_{i+1} - t_i) + \sum_{j=1}^i \left[ M(t_{i+1} - t_j) - 
 M(t_i - t_j) \right]
-\end{align}
-$$ 
-This summation holds for $i=1,\ldots,N(T)-1$, for $i=0$ where the summation term
-disappears due to no events in the history, and for $i = N(T)$ if we abuse 
-notation a little and say $T=t_{N(t)+1}$. Therefore we can write
-
+\end{aligned}
 $$
-\begin{align}
-\Lambda(T) &= \sum_{i=1}^{N(T)} \left\{ \lambda(t_{i+1} - t_i) + 
+
+This summation holds for $i=1,\ldots,N_T-1$, for $i=0$ where the summation term
+disappears due to no events in the history, and for $i = N_T$ if we abuse 
+notation a little and say $T=t_{N_T+1}$. Therefore we can write
+$$
+\begin{aligned}
+\Lambda(T) &= \sum_{i=1}^{N_T} \left\{ \lambda(t_{i+1} - t_i) + 
 \sum_{j=1}^i [M(t_{i+1} - t_j) - M(t_i - t_j)] \right\} 
 \\ 
-&= \lambda T + \sum_{i=1}^{N(T)} \sum_{j=1}^i [M(t_{i+1} - t_j) - M(t_i - t_j)]
+&= \lambda T + \sum_{i=1}^{N_T} \sum_{j=1}^i [M(t_{i+1} - t_j) - M(t_i - t_j)]
 \\
-&= \lambda T + \sum_{i=1}^{N(T)}  [M(T - t_i) - M(0)] 
-= \lambda T + \sum_{i=1}^{N(T)}  M(T - t_i)
-\end{align}
+&= \lambda T + \sum_{i=1}^{N_T}  [M(T - t_i) - M(0)] 
+= \lambda T + \sum_{i=1}^{N_T}  M(T - t_i)
+\end{aligned}
 $$ {#eq-hawkes_compensator}
 
-Thee log-likelihood (@eq-pp_loglikelihood), combined with the this form of the 
+The log-likelihood (@eq-pp_loglikelihood), combined with the this form of the 
 Hawkes compensator $\Lambda(T)$ and the Hawkes conditional intensity 
 (@eq-hp_lambda) gives us
 
 $$
-l = \sum_{i=1}^{N(T)} \log \left[ \lambda + \sum_{j=1}^{i-1} \mu(t_i - t_j) 
-\right] - \lambda T - \sum_{i=1}^{N(T)}  M(T - t_i)
+l = \sum_{i=1}^{N_T} \log \left[ \lambda + \sum_{j=1}^{i-1} \mu(t_i - t_j) 
+\right] - \lambda T - \sum_{i=1}^{N_T}  M(T - t_i)
 $$
 The double sum will mean that for a numeric optimisation routine, we will have 
 to evaluate a $\mathcal{O}([N(T)]^2)$ function for each optimisation step which 
 will scale poorly.
-
-#### Example Implementation
-
-```{r}
-
-```
 
 
 ## References {.unnumbered}
