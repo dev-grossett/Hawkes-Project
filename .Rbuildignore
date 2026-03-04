@@ -1,8 +1,8 @@
 ^LICENSE\.md$
-^*\.qmd$
-^*\.bib$
+^.*\.qmd$
+^.*\.bib$
 ^styles\.css$
-^*\.html$
+^.*\.html$
 ^Hawkes_notes_and_exploration_files$
 ^.*\.Rproj$
 ^\.Rproj\.user$

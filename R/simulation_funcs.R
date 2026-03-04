@@ -7,21 +7,21 @@
 #' the provided intensity function `intens`
 #'
 #' @param T A non-negative numeric value - the end of the interval \eqn{[0,T]}.
-#' @param fun A non-negative function (or numeric if simulating a homogeneous
+#' @param intens A non-negative function (or numeric if simulating a homogeneous
 #'   Poisson process) representing the intensity function, \eqn{\lambda (t)} of 
 #'   the Poisson process.
 #' @param M A non-negative numeric value - upper bound on `fun`. Ignored for 
 #'   a homogeneous Poisson process.
 #'
 #' @return A vector of simulated arrival times from the process.
-#'
+#' @importFrom stats rpois runif
 #' @export
 #'
 #' @examples
 #' # simulate an inhomogeneous Poisson process with Exp(2) intensity
-#' t <- simulate_pp(T = 5, intens = function(t) {2*exp(-2*t)}, M = 2)
+#' t <- sim_pp(T = 5, intens = function(t) {2*exp(-2*t)}, M = 2)
 #' # Simulate a homogeneous Poisson process with λ = 2
-#' x <- simulate_pp(T = 5, intens = 2)
+#' x <- sim_pp(T = 5, intens = 2)
 sim_pp <- function(T, intens, M = NULL) {
     
   # Homogeneous Case 
@@ -64,11 +64,11 @@ sim_pp <- function(T, intens, M = NULL) {
 #' Simulation of a Hawkes process using Ogata's modified thinning algorithm, 
 #' following Chapter 4 (Algorithm 2) of Laub, Taimre, and Pollett (2021). This 
 #' is similar to the thinning method for an inhomogeneous Poisson process, but
-#' in this case we have no a.s. asymptotic bound M for the conditional intensity 
-#' \eqn{\lambda^*(t)}. Instead, we restrict the function space to be only 
-#' non-increasing functions of $t$, which allows us to simply use the value of
-#' `fn(t_i)` where $t_i$ is the time just after an arrival, which is updated 
-#' with each arrival
+#' in this case we have no a.s. asymptotic bound \eqn{M} for the conditional 
+#' intensity \eqn{\lambda^*(t)}. Instead, we restrict the function space to be
+#' only non-increasing functions of \eqn{t}, which allows us to simply use the 
+#' value of `fn(t_i)` where \eqn{t_i} is the time just after an arrival, which 
+#' is updated after each arrival
 #'
 #' @param T A non-negative numeric value - the end of the interval \eqn{[0,T]}.
 #' @param lambda A non-negative numeric value - the background arrival 
@@ -78,12 +78,12 @@ sim_pp <- function(T, intens, M = NULL) {
 #'   be a vectorised function
 #'
 #' @return A vector of simulated arrival times from the process.
-#'
+#' @importFrom stats rexp runif
 #' @export
 #'
 #' @examples
 #' # simulate a Hawkes process with background rate 1 and Exp(2) kernel
-#' t <- simulate_hp(T=5, lambda = 1, mu = function(t) {2*exp(-2*t)})
+#' t <- sim_hp(T=5, lambda = 1, mu = function(t) {2*exp(-2*t)})
 sim_hp <- function(T, lambda, mu) {
   
   # some guardrails
@@ -150,22 +150,22 @@ sim_hp <- function(T, lambda, mu) {
 #' representation of a Hawkes process. It follows Chapter 4 (Algorithm 3) of
 #' Laub, Taimre, and Pollett (2021). For simplicity, we factor the usual 
 #' Hawkes kernel as \eqn{\mu(t) = \eta g(t)} where 
-#' \eqn{\eta = \int_0^{\infty} \mu(u) du} is the branching ratio, and $g(t)$ is 
-#' a probability density function on \eqn{\mathbb{R}^+}. 
+#' \eqn{\eta = \int_0^{\infty} \mu(u) du} is the branching ratio, and \eqn{g(t)}
+#' is a probability density function on \eqn{\mathbb{R}^+}. 
 #' 
 #' Simulation via an immigrant-birth process proceeds in two stages. The first 
 #' stage consists of randomly generating immigrant arrivals according to a 
-#' Poisson process with intensity $\lambda$ on the interval $[0, T ]$. The 
+#' Poisson process with intensity \eqn{\lambda} on the interval \eqn{[0, T]}. The 
 #' second stage then proceeds by randomly generating 
 #' \eqn{\mathrm{Poisson}(\eta)} first-generation offspring for each immigrant 
-#' generated, where conditional on an immigrant arriving at time $s$, the 
-#' waiting times of its offspring are independent draws from the density g(t). 
-#' Thus, first-generation offspring arrival times are given by 
+#' generated, where conditional on an immigrant arriving at time \eqn{s}, the 
+#' waiting times of its offspring are independent draws from the density 
+#' \eqn{g(t)}. Thus, first-generation offspring arrival times are given by 
 #' \deqn{s + E_j, \quad E_j \sim g(·)}
 #' Each first-generation offspring in turn generates further descendants 
 #' according to the same procedure, which produces the characteristic branching 
 #' structure. The recursion continues until no further offspring are generated 
-#' within $[0, T ]$.
+#' within \eqn{[0, T]}.
 #'
 #' @param T A non-negative numeric value - the end of the interval \eqn{[0,T]}.
 #' @param lambda A non-negative numeric value - the background arrival 
@@ -176,11 +176,18 @@ sim_hp <- function(T, lambda, mu) {
 #'   with a random generation function "rfamily". 
 #' @param ... Additional arguments passed to the random generation function.
 #'
-#' @return A vector of simulated arrival times from the process.
-#'
+#' @return A \code{data.frame} containing the simulated Hawkes process, 
+#'   sorted by arrival time, with the following columns:
+#' \itemize{
+#'   \item \code{time}: The arrival time of the event.
+#'   \item \code{gen}: The generation number (0 for immigrants, 1 for 
+#'     direct offspring, etc.).
+#'   \item \code{id}: A unique integer identifier for each event.
+#'   \item \code{parent_id}: The \code{id} of the parent event (0 for 
+#'     immigrants).
+#' }
+#' @importFrom stats rpois
 #' @export
-#'
-#' @examples
 #' 
 sim_hp_clus <- function(T, lambda, eta, family, ...) {
   # TODO: some exception handling where "rfamily" isn't a functions
@@ -241,3 +248,4 @@ sim_hp_clus <- function(T, lambda, eta, family, ...) {
   # Return all arrivals sorted by time
   res[order(res$time), ]
 }
+
