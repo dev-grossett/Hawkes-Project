@@ -67,9 +67,29 @@ add_counting_process <- function(H_t, T_max, col = "#4C566A") {
   # We start at (0,0), then jump at each event time
   # x-coords: 0 followed by the event times
   # y-coords: 0 followed by 1, 2, ..., n
-  x_vals <- c(0, H_t)
-  y_vals <- 0:length(H_t)
+  x_vals <- c(0, H_t, T_max)
+  y_vals <- c(0, seq_along(H_t), length(H_t))
   
   # type = "s" creates the step starting from the left
   lines(x_vals, y_vals, type = "s", col = col, lwd = 1.8)
 }
+
+#' Plot a Point Process Simulation
+#' @description S3 method for the point_process_sim class.
+#' @param x An object of class 'point_process_sim'.
+#' @param ... Additional arguments (ignored for now).
+#' @export
+plot.point_process_sim <- function(x, ...) {
+  # Setup Canvas
+  # Height goes up to total number of events (n)
+  plot_base_canvas(
+    xlim  = c(0, x$T_max), 
+    ylim  = c(0, x$n + 1), 
+    title = "Point Process Simulation: N(t)",
+    ylab  = expression(N(t))
+  )
+  add_counting_process(x$events, x$T_max, col = "#4C566A")
+  add_events(x$events, col = "#BF616A")
+  invisible(x)
+}
+

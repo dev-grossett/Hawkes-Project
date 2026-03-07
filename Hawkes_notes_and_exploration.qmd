@@ -394,47 +394,30 @@ $$
 $$
 
 ```{r poissonprocess_mle}
-# simulate a poisson process over [0, T]
-sim_poisson_process <- function(lambda, T, seed = NULL) {
-  # set seed if given
-  if (!is.null(seed)) {set.seed(seed)}
-  
-  # number of events in interval of length T is Poisson(λT) distributed
-  N_T <- rpois(1, lambda*T)
-  
-  # given N(T) = n, the times of arrivals tn,...,t_n are U(0, T) distributed
-  sort(runif(N_T, 0, T))
-}
-
 lambda <- 2
-T <- 10
-arrival_times <- sim_poisson_process(lambda, T, seed = 6)
+T_max <- 10
+set.seed(6)
 
-
-plot_base_canvas(
-  xlim = c(0, T*1.1), 
-  ylim = c(0, length(arrival_times)*1.1), 
-  title = paste0("Simulated Poisson Process (λ = ", lambda, ")"),
-  ylab = "N(t)"
-)
-add_counting_process(arrival_times, T)
+# simulate a Poisson process over [0, T_max] using custom library
+arrival_times <- sim_pp(T_max, lambda)
+plot(arrival_times)
 
 # log-likelihood of Poisson process arrival time data
-poisprocess_loglik <- function(lambda, arrival_times, T) {
+poisprocess_loglik <- function(lambda, arrival_times, T_max) {
   N_T <- length(arrival_times)
-  N_T*log(lambda) - lambda*T
+  N_T*log(lambda) - lambda*T_max
 }
 
 # since optim minimises by default
-poisprocess_negloglik <- function(lambda, arrival_times, T) {
-  -poisprocess_loglik(lambda, arrival_times, T)
+poisprocess_negloglik <- function(lambda, arrival_times, T_max) {
+  -poisprocess_loglik(lambda, arrival_times, T_max)
 }
 
 fit <- optim(
   par = 1, 
   fn = poisprocess_negloglik, 
-  arrival_times = arrival_times,
-  T = T,
+  arrival_times = arrival_times$events,
+  T_max = T_max,
   method = "L-BFGS-B",
   lower = 1e-8,
   hessian = TRUE
@@ -442,7 +425,7 @@ fit <- optim(
 
 cat(sprintf(
   "Analytic Solution = %.3f ± %.3f \nNumeric MLE = %.3f ± %.3f", 
-  length(arrival_times)/T, 1.96*sqrt(length(arrival_times))/T, 
+  length(arrival_times)/T_max, 1.96*sqrt(length(arrival_times))/T_max, 
   fit$par, 1.96/sqrt(fit$hessian)
 ))
 ```
@@ -561,19 +544,19 @@ exp_hp_compensator <- function(theta, t, H_t) {
   lambda*t + (alpha/beta)*sum(1 - exp(-beta*(t - H_t)))
 }
 
-exp_hp_loglik <- function(theta, T, H_t) {
-  # there is a speedup for the exponential hawkes log-likelihood that is O(N(T))
-  # this is the more expensive O([N(T)]^2) computation
+exp_hp_loglik <- function(theta, T_max, H_t) {
+  # there is a speedup for the exponential hawkes log-likelihood that is O(N(T_max))
+  # this is the more expensive O([N(T_max)]^2) computation
   log_intensities <- sapply(H_t, function(t_i) {
     past_events <- H_t[H_t < t_i] # Find history by comparing values
     log(exp_hp_intensity(theta = theta, t = t_i, H_t = past_events))
   })
   
   # total log-likelihood = sum(log(intensities)) - compensator at T
-  sum(log_intensities) - exp_hp_compensator(theta = theta, t = T, H_t = H_t)
+  sum(log_intensities) - exp_hp_compensator(theta = theta, t = T_max, H_t = H_t)
 }
 
-exp_hp_loglik_fast <- function(theta, T, H_t) {
+exp_hp_loglik_fast <- function(theta, T_max, H_t) {
   lambda <- theta[1]
   alpha <- theta[2]
   beta <- theta[3]
@@ -588,23 +571,23 @@ exp_hp_loglik_fast <- function(theta, T, H_t) {
   }
   
   log_intensities <- log(lambda + alpha*A)
-  sum(log_intensities) - exp_hp_compensator(theta, T, H_t)
+  sum(log_intensities) - exp_hp_compensator(theta, T_max, H_t)
 }
 
-exp_hp_negloglik<- function(theta, T, H_t, fast=TRUE) {
-  if (fast) return(-exp_hp_loglik_fast(theta = theta, T = T, H_t = H_t))
-  else return(-exp_hp_loglik(theta = theta, T = T, H_t = H_t))
+exp_hp_negloglik<- function(theta, T_max, H_t, fast=TRUE) {
+  if (fast) return(-exp_hp_loglik_fast(theta = theta, T_max = T_max, H_t = H_t))
+  else return(-exp_hp_loglik(theta = theta, T_max = T_max, H_t = H_t))
 }
 
-T <- 50; lambda <- 0.5; alpha <- 2; beta <- 3;
+T_max <- 200; lambda <- 0.5; alpha <- 2; beta <- 3;
 set.seed(123)
-t <- sim_hp(T = T, lambda = lambda, mu = function(t) {alpha*exp(-beta*t)})
+t <- sim_hp(T_max = T_max, lambda = lambda, mu = function(t) {alpha*exp(-beta*t)})
 
 fit <- optim(
   par = c(1, 1, 1), 
   fn = exp_hp_negloglik, 
-  H_t = t,
-  T = T,
+  H_t = t$events,
+  T_max = T_max,
   method = "L-BFGS-B",
   lower = c(1e-8, 1e-8, 1e-8),
   hessian = TRUE

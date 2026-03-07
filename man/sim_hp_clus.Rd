@@ -4,10 +4,11 @@
 \alias{sim_hp_clus}
 \title{Simulation of a Hawkes process by clusters}
 \usage{
-sim_hp_clus(T, lambda, eta, family, ...)
+sim_hp_clus(T_max, lambda, eta, family, ...)
 }
 \arguments{
-\item{T}{A non-negative numeric value - the end of the interval \eqn{[0,T]}.}
+\item{T_max}{A non-negative numeric value - the end of the interval
+\eqn{[0,T_{max}]}.}
 
 \item{lambda}{A non-negative numeric value - the background arrival
 component \eqn{\lambda} of the Hawkes conditional intensity}
@@ -21,15 +22,15 @@ with a random generation function "rfamily".}
 \item{...}{Additional arguments passed to the random generation function.}
 }
 \value{
-A \code{data.frame} containing the simulated Hawkes process,
-sorted by arrival time, with the following columns:
+An object of class \code{point_process_sim}. A list containing:
 \itemize{
-\item \code{time}: The arrival time of the event.
-\item \code{gen}: The generation number (0 for immigrants, 1 for
-direct offspring, etc.).
-\item \code{id}: A unique integer identifier for each event.
-\item \code{parent_id}: The \code{id} of the parent event (0 for
-immigrants).
+\item \code{events}: A sorted numeric vector of arrival times.
+\item \code{T_max}: The end of the simulation window.
+\item \code{params}: A list of the parameters used for simulation.
+\item \code{n}: The total number of events.
+\item \code{process}: The class of point process simulated
+\item \code{history}: A dataframe containing the simulation with
+additional fields to rebuild the history of immigrant-offspring branches.
 }
 }
 \description{
@@ -43,8 +44,9 @@ is a probability density function on \eqn{\mathbb{R}^+}.
 \details{
 Simulation via an immigrant-birth process proceeds in two stages. The first
 stage consists of randomly generating immigrant arrivals according to a
-Poisson process with intensity \eqn{\lambda} on the interval \eqn{[0, T]}. The
-second stage then proceeds by randomly generating
+Poisson process with intensity \eqn{\lambda} on the interval
+\eqn{[0, T_{max}]}.
+The second stage then proceeds by randomly generating
 \eqn{\mathrm{Poisson}(\eta)} first-generation offspring for each immigrant
 generated, where conditional on an immigrant arriving at time \eqn{s}, the
 waiting times of its offspring are independent draws from the density
@@ -53,5 +55,5 @@ waiting times of its offspring are independent draws from the density
 Each first-generation offspring in turn generates further descendants
 according to the same procedure, which produces the characteristic branching
 structure. The recursion continues until no further offspring are generated
-within \eqn{[0, T]}.
+within \eqn{[0, T_{max}]}.
 }
