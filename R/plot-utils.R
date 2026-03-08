@@ -20,7 +20,7 @@ plot_base_canvas <- function(
     # bty="l" (L-shaped), 
     # las=1 (horizontal text), 
     # yaxs="i" (tight axes)
-  par(mar = c(4, 4, 3, 1), bty = "l", las = 1, family = "sans")
+  graphics::par(mar = c(4, 4, 3, 1), bty = "l", las = 1, family = "sans")
   
   plot(0, type = "n", xlim = xlim, ylim = ylim, 
        xaxs = "i", yaxs = "i",
@@ -28,7 +28,7 @@ plot_base_canvas <- function(
        main = title, col.main = "#2E3440", cex.main = 1.1)
   
   # Soft horizontal grid lines
-  grid(nx = NA, ny = NULL, col = "gray93", lty = "solid")
+  graphics::grid(nx = NA, ny = NULL, col = "gray93", lty = "solid")
 }
 
 #' Add Intensity Line to Plot
@@ -37,10 +37,9 @@ plot_base_canvas <- function(
 #' @param intensities Numeric vector of intensity values.
 #' @param col Hex code for the line colour. Default is Nord Frost Blue.
 #' 
-#' @importFrom graphics lines
 #' @export
 add_intensity <- function(t, intensities, col = "#5E81AC") {
-  lines(t, intensities, col = col, lwd = 1.8)
+  graphics::lines(t, intensities, col = col, lwd = 1.8)
 }
 
 #' Add Event Ticks to Plot
@@ -48,11 +47,10 @@ add_intensity <- function(t, intensities, col = "#5E81AC") {
 #' @param H_t Numeric vector of event timestamps.
 #' @param col Hex code for the tick colour. Default is Nord Aurora Red.
 #' 
-#' @importFrom graphics rug
 #' @export
 add_events <- function(H_t, col = "#BF616A") {
   # lend=1 ensures flat, professional-looking bar ends
-  rug(H_t, col = col, lwd = 1, ticksize = 0.03, lend = 1)
+  graphics::rug(H_t, col = col, lwd = 1, ticksize = 0.03, lend = 1)
 }
 
 #' Add Counting Process (Step Plot)
@@ -61,7 +59,6 @@ add_events <- function(H_t, col = "#BF616A") {
 #' @param T_max The end of the observation window.
 #' @param col Hex code for the step line. Default is Nord Slate.
 #' 
-#' @importFrom graphics lines
 #' @export
 add_counting_process <- function(H_t, T_max, col = "#4C566A") {
   # We start at (0,0), then jump at each event time
@@ -71,25 +68,42 @@ add_counting_process <- function(H_t, T_max, col = "#4C566A") {
   y_vals <- c(0, seq_along(H_t), length(H_t))
   
   # type = "s" creates the step starting from the left
-  lines(x_vals, y_vals, type = "s", col = col, lwd = 1.8)
+  graphics::lines(x_vals, y_vals, type = "s", col = col, lwd = 1.8)
 }
 
-#' Plot a Point Process Simulation
-#' @description S3 method for the point_process_sim class.
-#' @param x An object of class 'point_process_sim'.
-#' @param ... Additional arguments (ignored for now).
-#' @export
-plot.point_process_sim <- function(x, ...) {
-  # Setup Canvas
-  # Height goes up to total number of events (n)
-  plot_base_canvas(
-    xlim  = c(0, x$T_max), 
-    ylim  = c(0, x$n + 1), 
-    title = "Point Process Simulation: N(t)",
-    ylab  = expression(N(t))
-  )
-  add_counting_process(x$events, x$T_max, col = "#4C566A")
-  add_events(x$events, col = "#BF616A")
-  invisible(x)
+#' @keywords internal
+.get_exp_intensity_grid <- function(t_grid, H_t, theta) {
+  # Unpack
+  lambda <- theta[1]
+  alpha  <- theta[2]
+  beta   <- theta[3]
+  n      <- length(H_t)
+  
+  # exponential kernel speedup - same as in .exp_hp_intensity_at_events() 
+  A <- numeric(n)
+  if (n > 1) {
+    for (i in 2:n) {
+      A[i] <- exp(-beta * (H_t[i] - H_t[i-1])) * (1 + A[i-1])
+    }
+  }
+  
+  # map grid points to the most recent event index
+  # idx[j] tells us which event in H_t happened just before t_grid[j]
+  idx <- findInterval(t_grid, H_t)
+  
+  intensities <- numeric(length(t_grid))
+  
+  # points before the first event are just the baseline
+  intensities[idx == 0] <- lambda
+  
+  # points after at least one event:
+  # lambda(t) = lambda + alpha * (1 + A_prev) * exp(-beta * (t - t_prev))
+  has_past <- idx > 0
+  if (any(has_past)) {
+    last_ev_idx <- idx[has_past]
+    dt <- t_grid[has_past] - H_t[last_ev_idx]
+    
+    intensities[has_past] <- lambda + alpha * (1 + A[last_ev_idx]) * exp(-beta * dt)
+  }
+  intensities
 }
-

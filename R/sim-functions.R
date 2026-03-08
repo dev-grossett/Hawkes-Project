@@ -1,3 +1,20 @@
+#' Internal Constructor for point_process_sim
+#' @keywords internal
+.new_point_process_sim <- function(events, T_max, params, type, 
+                                   full_history = NULL) {
+  structure(
+    list(
+      events = sort(events),
+      T_max = T_max,
+      params = params,
+      n = length(events),
+      type = type,
+      full_history = full_history
+    ),
+    class = "point_process_sim"
+  )
+}
+
 #' Simulation of a Poisson process
 #' 
 #' Simulation of a (possibly inhomogeneous) Poisson process using the thinning 
@@ -20,9 +37,8 @@
 #'   \item \code{T_max}: The end of the simulation window.
 #'   \item \code{params}: A list of the parameters used for simulation.
 #'   \item \code{n}: The total number of events.
-#'   \item \code{process}: The class of point process simulated
+#'   \item \code{type}: The type of process simulated.
 #' }
-#' @importFrom stats rpois runif
 #' @export
 #'
 #' @examples
@@ -39,8 +55,8 @@ sim_pp <- function(T_max, intens, M = NULL) {
       "'intens' must be a single non-negative number" = 
         length(intens) == 1 && !is.na(intens) && intens >= 0
     )
-    N_T <- rpois(1, intens * T_max)
-    arrival_times <- sort(runif(N_T, 0, T_max))
+    N_T <- stats::rpois(1, intens * T_max)
+    arrival_times <- sort(stats::runif(N_T, 0, T_max))
   } else {
     # Inhomogeneous Case Guardrails
     # TODO: errors for missing 'M', could instead approximate across a grid
@@ -52,32 +68,27 @@ sim_pp <- function(T_max, intens, M = NULL) {
     )
     
     # simulate homogeneous poisson process with rate M on [0, T_max]
-    N_T <- rpois(1, M * T_max)
+    N_T <- stats::rpois(1, M * T_max)
     if (N_T == 0) {
       arrival_times <- numeric(0) # Handle edge case of 0 arrivals
     } else {
-      unthinned_arrival_times <- sort(runif(N_T, 0, T_max))
+      unthinned_arrival_times <- sort(stats::runif(N_T, 0, T_max))
       # keep arrivals with some probability
       # intens() must be able to handle the vector 'unthinned_arrival_times'
-      u <- runif(N_T, 0, M)
+      u <- stats::runif(N_T, 0, M)
       keep <- u <= intens(unthinned_arrival_times)
       arrival_times <- unthinned_arrival_times[keep]
     }
   }
   
-  # Wrap the results in a class
-  structure(
-    list(
-      events = arrival_times,
-      T_max = T_max,
-      params = c(intens = intens),
-      n = length(arrival_times),
-      process = "Poisson"
-    ),
-    class = "point_process_sim"
+  # Wrap the results in a point_process_sim class
+  .new_point_process_sim(
+    events = arrival_times,
+    T_max = T_max,
+    params = list(intens = intens),
+    type = "Poisson"
   )
 }
-
 
 #' Simulation of a Hawkes process by thinning
 #' 
@@ -104,9 +115,7 @@ sim_pp <- function(T_max, intens, M = NULL) {
 #'   \item \code{T_max}: The end of the simulation window.
 #'   \item \code{params}: A list of the parameters used for simulation.
 #'   \item \code{n}: The total number of events.
-#'   \item \code{process}: The class of point process simulated
 #' }
-#' @importFrom stats rexp runif
 #' @export
 #'
 #' @examples
@@ -151,12 +160,12 @@ sim_hp <- function(T_max, lambda, mu) {
     }
     
     # generate next candidate point
-    t <- t + rexp(1, M)
+    t <- t + stats::rexp(1, M)
     if (t > T_max) break
     
     current_intensity <- lambda + sum(mu(t - arrival_times))
     # keep it with some probability
-    if (runif(1, 0, M) <= current_intensity) {
+    if (stats::runif(1, 0, M) <= current_intensity) {
       count <- count + 1
       
       # double the capacity of arrival_times if out of space
@@ -170,19 +179,14 @@ sim_hp <- function(T_max, lambda, mu) {
   # trim trailing zeros
   arrival_times <- if (count == 0) numeric(0) else arrival_times[1:count]
   
-  # Wrap the results in a class
-  structure(
-    list(
-      events = arrival_times,
-      T_max = T_max,
-      params = c(lambda = lambda, mu = mu),
-      n = length(arrival_times),
-      process = "Hawkes"
-    ),
-    class = "point_process_sim"
+  # Wrap the results in a point_process_sim class
+  .new_point_process_sim(
+    events = arrival_times,
+    T_max = T_max,
+    params = list(lambda = lambda, mu = mu),
+    type = "Hawkes"
   )
 }
-
 
 #' Simulation of a Hawkes process by clusters
 #' 
@@ -224,17 +228,49 @@ sim_hp <- function(T_max, lambda, mu) {
 #'   \item \code{T_max}: The end of the simulation window.
 #'   \item \code{params}: A list of the parameters used for simulation.
 #'   \item \code{n}: The total number of events.
-#'   \item \code{process}: The class of point process simulated
 #'   \item \code{history}: A dataframe containing the simulation with
 #'     additional fields to rebuild the history of immigrant-offspring branches.
 #' }
-#' @importFrom stats rpois
 #' @export
 #' 
 sim_hp_clus <- function(T_max, lambda, eta, family, ...) {
-  # TODO: some exception handling where "rfamily" isn't a functions
-  # Fetch the random generation function (e.g., "rexp" if family="exp")
-  random_fn <- get(paste0("r", family), mode = "function")
+  
+  # some guardrails
+  stopifnot(
+    "'T_max' must be a single numeric" = 
+      is.numeric(T_max) && length(T_max) == 1 && !is.na(T_max),
+    
+    "'T_max' must be positive" = 
+      T_max > 0,
+    
+    "'lambda' must be a single numeric" = 
+      is.numeric(lambda) && length(lambda) == 1 && !is.na(lambda),
+    
+    "'lambda' must be non-negative" = 
+      lambda >= 0,
+    
+    "'eta' (branching ratio) must be a single numeric" = 
+      is.numeric(eta) && length(eta) == 1 && !is.na(eta),
+    
+    "'eta' must be non-negative" = 
+      eta >= 0,
+    
+    "'family' must be a single character string" = 
+      is.character(family) && length(family) == 1
+  )
+  
+  # warning for possible explosion
+  if (eta >= 1) {
+    warning("eta >= 1: The process is non-stationary and may not terminate.")
+  }
+  
+  # Check for the existence of the distribution function
+  dist_name <- paste0("r", family)
+  if (!exists(dist_name, mode = "function")) {
+    stop(sprintf("The distribution function '%s' does not exist.", dist_name))
+  } else {
+    random_fn <- get(paste0("r", family), mode = "function")
+  }
   
   # Stage 1: Generate immigrants using sim_pp function
   # TODO: possibility for inghomogeneous background (not standard Hawkes formulation though)
@@ -257,7 +293,7 @@ sim_hp_clus <- function(T_max, lambda, eta, family, ...) {
   # Stage 2: Recursive branching (Generation by Generation)
   while (nrow(recent_gen_df) > 0) {
     # number of offspring for each event in the recent generation
-    num_offspring <- rpois(nrow(recent_gen_df), eta)
+    num_offspring <- stats::rpois(nrow(recent_gen_df), eta)
     
     # if no offspring in this entire generation, we are done
     if (sum(num_offspring) == 0) break
@@ -297,17 +333,44 @@ sim_hp_clus <- function(T_max, lambda, eta, family, ...) {
     full_history  <- res
   }
   
-  # Return the point_process_sim object
-  structure(
-    list(
-      events = arrival_times,
-      T_max = T_max,
-      params = list(lambda = lambda, eta = eta, family = family, dots = list(...)),
-      n = length(arrival_times),
-      process = "Hawkes",
-      # Keep the branching data hidden in the list for debugging, etc.
-      full_history = full_history
-    ),
-    class = "point_process_sim"
+  # Warp the results in a point_process_sim class
+  .new_point_process_sim(
+    events = arrival_times,
+    T_max = T_max,
+    params = list(lambda = lambda, eta = eta, family = family, dots = list(...)),
+    type = "Hawkes (cluster)",
+    full_history = res # This is the dataframe with gen/parent info
   )
+}
+
+#' Plot a Point Process Simulation
+#' @description S3 method for the point_process_sim class.
+#' @param x An object of class 'point_process_sim'.
+#' @param ... Additional arguments (ignored for now).
+#' @export
+plot.point_process_sim <- function(x, ...) {
+  # Setup Canvas
+  # Height goes up to total number of events (n)
+  plot_base_canvas(
+    xlim  = c(0, x$T_max), 
+    ylim  = c(0, x$n + 1), 
+    title = "Point Process Simulation: N(t)",
+    ylab  = expression(N(t))
+  )
+  add_counting_process(x$events, x$T_max, col = "#4C566A")
+  add_events(x$events, col = "#BF616A")
+  invisible(x)
+}
+
+#' @export
+print.point_process_sim <- function(x, ...) {
+  cat("\n--- Point Process Simulation ---\n")
+  cat("Type:   ", x$type, "\n")
+  cat("Events: ", x$n, "\n")
+  cat("Window: [0, ", x$T_max, "]\n", sep = "")
+  # Optional: show the first few event times
+  if (x$n > 0) {
+    cat("Times:  ", paste(round(head(x$events, 3), 3), collapse = ", "), "...\n")
+  }
+  cat("---\n")
 }
