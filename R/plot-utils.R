@@ -7,7 +7,6 @@
 #' @param xlab String for the x-axis label. Default "Time (t)".
 #' @param ylab String for the y-axis label. Default intensity symbol.
 #' 
-#' @importFrom graphics par grid
 #' @export
 plot_base_canvas <- function(
   xlim, 
