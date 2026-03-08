@@ -37,7 +37,7 @@ Simulation of a Hawkes process by clusters i.e. using the immigrant-birth
 representation of a Hawkes process. It follows Chapter 4 (Algorithm 3) of
 Laub, Taimre, and Pollett (2021). For simplicity, we factor the usual
 Hawkes kernel as \eqn{\mu(t) = \eta g(t)} where
-\eqn{\eta = \int_0^{\infty} \mu(u) du} is the branching ratio, and \eqn{g(t)}
+\eqn{\eta = \int_0^{\infty} \mu(t) dt} is the branching ratio, and \eqn{g(t)}
 is a probability density function on \eqn{\mathbb{R}^+}.
 }
 \details{

@@ -102,7 +102,7 @@ sim_pp <- function(T_max, intens, M = NULL) {
 #' is updated after each arrival
 #'
 #' @param T_max A non-negative numeric value - the end of the interval 
-#'   \eqn{[0,{T_max}]}.
+#'   \eqn{[0,T_{max}]}.
 #' @param lambda A non-negative numeric value - the background arrival 
 #'   component \eqn{\lambda} of the Hawkes conditional intensity
 #' @param mu A non-negative, non-increasing function - the excitation 
@@ -194,7 +194,7 @@ sim_hp <- function(T_max, lambda, mu) {
 #' representation of a Hawkes process. It follows Chapter 4 (Algorithm 3) of
 #' Laub, Taimre, and Pollett (2021). For simplicity, we factor the usual 
 #' Hawkes kernel as \eqn{\mu(t) = \eta g(t)} where 
-#' \eqn{\eta = \int_0^{\infty} \mu(u) du} is the branching ratio, and \eqn{g(t)}
+#' \eqn{\eta = \int_0^{\infty} \mu(t) dt} is the branching ratio, and \eqn{g(t)}
 #' is a probability density function on \eqn{\mathbb{R}^+}. 
 #' 
 #' Simulation via an immigrant-birth process proceeds in two stages. The first 

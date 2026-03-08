@@ -31,13 +31,13 @@ crossref:
 
 These are some notes taken while reading through @Laub2021_ElementsHawkes
 
-```{r}
+```{r load_proj_lib}
 # WIP library that currently has my simulation and plotting functions
 library(HawkesProject)
 ```
 
-```{r, include=FALSE}
-# --- Color Palettes ---
+```{r colours, include=FALSE}
+# --- Colour Palettes ---
 
 # NORD (Minimalist / Clean)
 NORD_BLUE   <- "#81A1C1" # Primary Intensity
@@ -329,25 +329,6 @@ segments(
   results$trial, results$upper,
   col = cols, lwd = widths
 )
-
-# plot(
-#   results$trial,
-#   results$mean,
-#   pch = 16,
-#   cex = 0.6,
-#   col = cols,
-#   ylim = range(results$lower, results$upper),
-#   xlab = "Simulation",
-#   ylab = expression(hat(lambda)),
-#   main = "Coverage of 95% CI"
-# )
-
-# segments(
-#   results$trial, results$lower,
-#   results$trial, results$upper,
-#   col = cols, lwd = widths
-# )
-
 abline(h = 2, lwd = 2)
 ```
 
@@ -357,25 +338,25 @@ abline(h = 2, lwd = 2)
 Let $N$ be a simple point process with conditional intensity $\lambda^*(t)$ and
 compensator $\Lambda(t)$. If we observe all the arrival times over the time 
 period $[0, T ]$, denoted $\{t_1, \ldots, t_{N(T)} \}$, then the likelihood 
-function $L(\mathbf{\theta} \mid \mathbf{t})$ for $N$ is 
+function $L(\boldsymbol{\theta} \mid \mathbf{t})$ for $N$ is 
 $$
-L(\mathbf{\theta} \mid \mathbf{t})= \left[ \prod_{i=1}^{N_T} \lambda^*(t_i 
-  \mid \mathbf{\theta}, \mathbf{t}) \right] 
-  e^{-\Lambda(T \mid \mathbf{\theta}, \mathbf{t})}
+L(\boldsymbol{\theta} \mid \mathbf{t})= \left[ \prod_{i=1}^{N_T} \lambda^*(t_i 
+  \mid \boldsymbol{\theta}, \mathbf{t}) \right] 
+  e^{-\Lambda(T \mid \boldsymbol{\theta}, \mathbf{t})}
 $$ {#eq-pp_likelihood}
 and the log-likelihood function is
 $$
-l(\mathbf{\theta} \mid \mathbf{t}) = \sum_{i=1}^{N_T} \log(\lambda^*(t_i \mid
-  \mathbf{\theta}, \mathbf{t})) - \Lambda(T \mid \mathbf{\theta}, \mathbf{t})
+l(\boldsymbol{\theta} \mid \mathbf{t}) = \sum_{i=1}^{N_T} \log(\lambda^*(t_i \mid
+  \boldsymbol{\theta}, \mathbf{t})) - \Lambda(T \mid \boldsymbol{\theta}, \mathbf{t})
 $$ {#eq-pp_loglikelihood}
 :::
 
 For brevity we will not keep writing the observation vector $\mathbf{t}$ and the
-parameter vector $\mathbf{\theta}$, so in that notation 
-$L = L(\mathbf{\theta} \mid \mathbf{t})$, 
-$l = l(\mathbf{\theta} \mid \mathbf{t})$, 
-$\lambda^*(t_i) = \lambda^*(t_i \mid \mathbf{\theta}, \mathbf{t})$, and
-$\Lambda(t) = \Lambda(t \mid \mathbf{\theta}, \mathbf{t})$.
+parameter vector $\boldsymbol{\theta}$, so in that notation 
+$L = L(\boldsymbol{\theta} \mid \mathbf{t})$, 
+$l = l(\boldsymbol{\theta} \mid \mathbf{t})$, 
+$\lambda^*(t_i) = \lambda^*(t_i \mid \boldsymbol{\theta}, \mathbf{t})$, and
+$\Lambda(t) = \Lambda(t \mid \boldsymbol{\theta}, \mathbf{t})$.
 
 
 #### Example: Poisson Process MLE  {.unnumbered}
@@ -393,14 +374,18 @@ $$
 \hat{\lambda} = N_T/T
 $$
 
+And the code implementation estimating the parameters of a Poisson process 
+observed over $[0, 10]$ with $\lambda = 2$:
+
 ```{r poissonprocess_mle}
 lambda <- 2
 T_max <- 10
 set.seed(6)
 
 # simulate a Poisson process over [0, T_max] using custom library
-arrival_times <- sim_pp(T_max, lambda)
-plot(arrival_times)
+sim_object <- sim_pp(T_max, lambda)
+plot(sim_object)
+arrival_times <- sim_object$events
 
 # log-likelihood of Poisson process arrival time data
 poisprocess_loglik <- function(lambda, arrival_times, T_max) {
@@ -416,7 +401,7 @@ poisprocess_negloglik <- function(lambda, arrival_times, T_max) {
 fit <- optim(
   par = 1, 
   fn = poisprocess_negloglik, 
-  arrival_times = arrival_times$events,
+  arrival_times = arrival_times,
   T_max = T_max,
   method = "L-BFGS-B",
   lower = 1e-8,
@@ -523,8 +508,10 @@ $$
 l = \sum_{i=1}^{N_T} \ln \left[ \lambda + \alpha A(i) \right] - \Lambda (T)
 $$ {#eq-exp_hp_loglik_fast}
 
+And the code implementation estimating the parameters of an exponential Hawkes 
+process over $[0, 200]$ with 
+$\boldsymbol{\theta} = (\lambda, \alpha, \beta) = (0.5, 2, 3)$:
 ```{r hawkesprocess_mle}
-
 exp_hp_intensity <- function(theta, t, H_t) {
   # unpack parameters
   lambda <- theta[1]
@@ -579,17 +566,26 @@ exp_hp_negloglik<- function(theta, T_max, H_t, fast=TRUE) {
   else return(-exp_hp_loglik(theta = theta, T_max = T_max, H_t = H_t))
 }
 
-T_max <- 200; lambda <- 0.5; alpha <- 2; beta <- 3;
+T_max <- 200
+lambda <- 0.5
+alpha <- 2
+beta <- 3;
+
 set.seed(123)
-t <- sim_hp(T_max = T_max, lambda = lambda, mu = function(t) {alpha*exp(-beta*t)})
+sim_object <- sim_hp(
+  T_max = T_max, 
+  lambda = lambda, 
+  mu = function(t) {alpha*exp(-beta*t)}
+)
+H_t <- sim_object$events
 
 fit <- optim(
   par = c(1, 1, 1), 
   fn = exp_hp_negloglik, 
-  H_t = t$events,
+  H_t = H_t,
   T_max = T_max,
   method = "L-BFGS-B",
-  lower = c(1e-8, 1e-8, 1e-8),
+  lower = c(1e-6, 1e-6, 1e-6),
   hessian = TRUE
 )
 
@@ -607,18 +603,16 @@ cat("Maximum Likelihood Estimates with 95% CIs:\n", sprintf(
 ```
 
 ```{r}
-t_grid <- seq(0, T, length.out = 2000) 
+t_grid <- seq(0, T_max, length.out = 2000) 
 intensities <- sapply(t_grid, function(t_i) {
-  past <- t[t < t_i]
-  lambda + sum(alpha * exp(-beta * (t_i - past)))
+  past <- H_t[H_t < t_i]
+  lambda + sum(alpha*exp(-beta*(t_i - past)))
 })
 
-plot_base_canvas(c(0, T), c(0, max(intensities)*1.1), "Hawkes MLE Fit")
+plot_base_canvas(c(0, T_max), c(0, max(intensities)*1.1), "Hawkes MLE Fit")
 abline(h = fit$par[1], col = NORD_NIGHT, lty = 3) # Baseline
 add_intensity(t_grid, intensities)
-add_events(t)
-
-
+add_events(H_t)
 ```
 
 

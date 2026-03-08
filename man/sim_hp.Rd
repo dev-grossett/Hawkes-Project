@@ -8,7 +8,7 @@ sim_hp(T_max, lambda, mu)
 }
 \arguments{
 \item{T_max}{A non-negative numeric value - the end of the interval
-\eqn{[0,{T_max}]}.}
+\eqn{[0,T_{max}]}.}
 
 \item{lambda}{A non-negative numeric value - the background arrival
 component \eqn{\lambda} of the Hawkes conditional intensity}
