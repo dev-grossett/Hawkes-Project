@@ -370,7 +370,11 @@ print.point_process_sim <- function(x, ...) {
   cat("Window: [0, ", x$T_max, "]\n", sep = "")
   # Optional: show the first few event times
   if (x$n > 0) {
-    cat("Times:  ", paste(round(head(x$events, 3), 3), collapse = ", "), "...\n")
+    cat(
+      "Times:  ", 
+      paste(round(utils::head(x$events, 3), 3), collapse = ", "), 
+      "...\n"
+    )
   }
   cat("---\n")
 }

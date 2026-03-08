@@ -32,7 +32,7 @@ crossref:
 These are some notes taken while reading through @Laub2021_ElementsHawkes
 
 ```{r}
-# WIP library that currenly has my simulation and plotting functions
+# WIP library that currently has my simulation and plotting functions
 library(HawkesProject)
 ```
 

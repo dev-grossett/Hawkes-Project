@@ -109,6 +109,8 @@ exp_hp_loglik <- function(theta, H_t, T_max, lik_method = c("fast", "slow")) {
 #' @param object Either a numeric vector of event times or a 'point_process_sim'
 #'   object.
 #' @param T_max Numeric value. Required if 'object' is a numeric vector.
+#' @param lik_method Character string, either "fast" (recursive) or "slow" 
+#'   (direct).
 #' @param init Numeric vector. Initial guesses for the parameters.
 #' @return An object of class 'hawkes_fit'.
 #' @export
@@ -272,6 +274,7 @@ plot.hawkes_fit <- function(x, n_grid = 1000, ...) {
 #'   compensator at each point as the new transformed process.
 #' @param object An object of class 'hawkes_fit'.
 #' @param ... Additional arguments.
+#' @importFrom stats residuals
 #' @export
 residuals.hawkes_fit <- function(object, ...) {
   H_t <- object$H_t
@@ -326,7 +329,7 @@ plot_residuals <- function(object) {
   gaps <- diff(c(0, tau))
   n <- length(gaps)
   
-  max_val <- max(qexp(ppoints(n)), gaps) * 1.05
+  max_val <- max(stats::qexp(stats::ppoints(n)), gaps) * 1.05
   
   plot_base_canvas(
     xlim  = c(0, max_val), 
@@ -336,7 +339,7 @@ plot_residuals <- function(object) {
     ylab  = "Sample Residual Quantiles"
   )
   graphics::abline(0, 1, col = "#BF616A", lty = 2, lwd = 2)
-  theoretical_q <- qexp(ppoints(n))
+  theoretical_q <- stats::qexp(stats::ppoints(n))
   graphics::points(theoretical_q, sort(gaps), col = "#5E81AC", pch = 20, cex = 0.7)
   
   # subtitle for the Kolmogorov-Smirnov test
