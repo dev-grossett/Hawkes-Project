@@ -41,14 +41,14 @@
   font-weight: normal !important;
 }
 
-/* LaTeX QED Symbol (Hollow Square) */
+/* LaTeX QED Symbol */
 .proof > *:last-child::after {
   content: " \25fb"; 
   float: right;
   margin-top: 0.5em;
 }
 
-/* --- 5. DEFINITION SYMBOL (Optional: Your requested Diamond) --- */
+/* --- 5. DEFINITION SYMBOL --- */
 .definition > *:last-child::after {
   content: " \25c7"; 
   float: right;

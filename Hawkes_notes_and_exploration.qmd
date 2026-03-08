@@ -31,6 +31,24 @@ crossref:
 
 These are some notes taken while reading through @Laub2021_ElementsHawkes
 
+```{r load_proj_lib}
+# WIP library that currently has my simulation and plotting functions
+library(HawkesProject)
+```
+
+```{r colours, include=FALSE}
+# --- Colour Palettes ---
+
+# NORD (Minimalist / Clean)
+NORD_BLUE   <- "#81A1C1" # Primary Intensity
+NORD_SLATE  <- "#4C566A" # Baseline / N(t)
+NORD_RED    <- "#BF616A" # Events / Ticks
+NORD_FROST  <- "#88C0D0" # Secondary Line
+NORD_NIGHT  <- "#2E3440" # Titles / Text
+```
+
+
+
 ## Point Process Background
 
 ### Counting and Point Process Background
@@ -160,7 +178,7 @@ $\mathcal{H}(u)$.
 The most common choice of $\mu$ is the exponentially decaying kernel 
 $$
 \mu(t) = \alpha e^{-\beta t} , \quad \alpha,\beta > 0
-$$
+$$ {#eq-hp_exp_kernel}
 
 An alternative way to represent a Hawkes process is through a branching process
 known as an immigrant-birth process (@Hawkes1974_ClusterRepresentation). In this
@@ -181,6 +199,8 @@ necessary and sufficient.
 
 ## Maximum Likelihood Estimation
 
+#### Example: Exponential MLE  {.unnumbered}
+
 Below is an example of estimating a parameter from $\mathrm{Exp(\lambda)}$ data 
 using Maximum Likelihood Estimation (MLE). For this problem
 $$
@@ -190,7 +210,7 @@ l(\lambda \mid \mathbf{t}) &= n \log \lambda - \lambda \sum_{i=1}^n t_i
 \end{aligned}
 $$
 
-```{r}
+```{r exp_mle}
 # generate Exp(λ) variables, with each column a new realisation
 generate_exp_matrix <- function(n_obs, n_trials, lambda_true, seed = NULL) {
   # set seed if given
@@ -258,7 +278,7 @@ t_mat <- generate_exp_matrix(
 results <- mle_results(t_mat)
 ```
 
-```{r, echo=FALSE}
+```{r exp_mle_results_table, echo=FALSE}
 summary_table <- data.frame(
   Parameter = "λ",
   MC_Trials = nrow(results),
@@ -291,32 +311,26 @@ knitr::kable(
 ```
 
 
-```{r, echo=FALSE}
+```{r exp_mle_plot, echo=FALSE}
 cover <- results$lower <= 2 & results$upper >= 2
-cols <- ifelse(cover, "black", "red")
+cols <- ifelse(cover, NORD_SLATE, NORD_RED)
 widths <- ifelse(cover, 0.5, 1.5) 
 
-plot(
-  results$trial,
-  results$mean,
-  pch = 16,
-  cex = 0.6,
-  col = cols,
+plot_base_canvas(
+  xlim = c(min(results$trial), max(results$trial)), 
   ylim = range(results$lower, results$upper),
+  title = "Coverage of 95% CI",
   xlab = "Simulation",
-  ylab = expression(hat(lambda)),
-  main = "Coverage of 95% CI"
+  ylab = expression(hat(lambda))
 )
-
+points(results$trial, results$mean, col = cols, pch = 16, cex = 0.6)
 segments(
   results$trial, results$lower,
   results$trial, results$upper,
   col = cols, lwd = widths
 )
-
 abline(h = 2, lwd = 2)
 ```
-
 
 ::: {#thm-point_process_likelihood}
 ## Point Process Likelihood
@@ -324,22 +338,35 @@ abline(h = 2, lwd = 2)
 Let $N$ be a simple point process with conditional intensity $\lambda^*(t)$ and
 compensator $\Lambda(t)$. If we observe all the arrival times over the time 
 period $[0, T ]$, denoted $\{t_1, \ldots, t_{N(T)} \}$, then the likelihood 
-function $L$ for $N$ is 
+function $L(\boldsymbol{\theta} \mid \mathbf{t})$ for $N$ is 
 $$
-L = \left[ \prod_{i=1}^{N_T} \lambda^*(t_i) \right] e^{-\Lambda(T)}
+L(\boldsymbol{\theta} \mid \mathbf{t})= \left[ \prod_{i=1}^{N_T} \lambda^*(t_i 
+  \mid \boldsymbol{\theta}, \mathbf{t}) \right] 
+  e^{-\Lambda(T \mid \boldsymbol{\theta}, \mathbf{t})}
 $$ {#eq-pp_likelihood}
 and the log-likelihood function is
 $$
-l = \sum_{i=1}^{N_T} \log(\lambda^*(t_i)) - \Lambda(T)
+l(\boldsymbol{\theta} \mid \mathbf{t}) = \sum_{i=1}^{N_T} \log(\lambda^*(t_i \mid
+  \boldsymbol{\theta}, \mathbf{t})) - \Lambda(T \mid \boldsymbol{\theta}, \mathbf{t})
 $$ {#eq-pp_loglikelihood}
 :::
 
-### Example: Poisson Process Likelihood
+For brevity we will not keep writing the observation vector $\mathbf{t}$ and the
+parameter vector $\boldsymbol{\theta}$, so in that notation 
+$L = L(\boldsymbol{\theta} \mid \mathbf{t})$, 
+$l = l(\boldsymbol{\theta} \mid \mathbf{t})$, 
+$\lambda^*(t_i) = \lambda^*(t_i \mid \boldsymbol{\theta}, \mathbf{t})$, and
+$\Lambda(t) = \Lambda(t \mid \boldsymbol{\theta}, \mathbf{t})$.
+
+
+#### Example: Poisson Process MLE  {.unnumbered}
 
 For a simple example we'll estimate a Poisson process' parameter using MLE and
 the form of the log-likelihood in @eq-pp_loglikelihood. In this case, 
 $\lambda^*(t) = \lambda$ and the compensator $\Lambda(t) = \lambda t$. Therefore
-$$l = N_T \log \lambda - \lambda T$$
+$$
+l = N_T \log \lambda - \lambda T
+$$
 
 The value of $\lambda$ that maximises this is easily found by setting 
 $\frac{\dd l}{\dd \lambda}=0$ and solving for $\lambda$, giving 
@@ -347,53 +374,45 @@ $$
 \hat{\lambda} = N_T/T
 $$
 
-```{r}
-# simulate a poisson process over [0, T]
-sim_poisson_process <- function(lambda, T, seed = NULL) {
-  # set seed if given
-  if (!is.null(seed)) {set.seed(seed)}
-  
-  # number of events in interval of length T is Poisson(λT) distributed
-  N_T <- rpois(1, lambda*T)
-  
-  # given N(T) = n, the times of arrivals tn,...,t_n are U(0, T) distributed
-  sort(runif(N_T, 0, T))
-}
+And the code implementation estimating the parameters of a Poisson process 
+observed over $[0, 10]$ with $\lambda = 2$:
 
+```{r poissonprocess_mle}
 lambda <- 2
-T <- 10
-arrival_times <- sim_poisson_process(lambda, T, seed = 6)
+T_max <- 10
+set.seed(6)
 
-plot(c(0, arrival_times), 0:length(arrival_times), type = "s", 
-     xlab = "Time (t)", ylab = "Number of events N(t)",
-     main = paste0("Simulated Poisson Process (λ = ", lambda, ")"))
+# simulate a Poisson process over [0, T_max] using custom library
+sim_object <- sim_pp(T_max, lambda)
+plot(sim_object)
+arrival_times <- sim_object$events
 
 # log-likelihood of Poisson process arrival time data
-poisprocess_loglik <- function(lambda, arrival_times, T) {
+poisprocess_loglik <- function(lambda, arrival_times, T_max) {
   N_T <- length(arrival_times)
-  N_T*log(lambda) - lambda*T
+  N_T*log(lambda) - lambda*T_max
 }
 
 # since optim minimises by default
-poisprocess_negloglik <- function(lambda, arrival_times, T) {
-  -poisprocess_loglik(lambda, arrival_times, T)
+poisprocess_negloglik <- function(lambda, arrival_times, T_max) {
+  -poisprocess_loglik(lambda, arrival_times, T_max)
 }
 
 fit <- optim(
   par = 1, 
   fn = poisprocess_negloglik, 
   arrival_times = arrival_times,
-  T = T,
+  T_max = T_max,
   method = "L-BFGS-B",
   lower = 1e-8,
   hessian = TRUE
 )
 
-cat(
-  "Analytic Solution = ", 
-  length(arrival_times)/T, "±", round(sqrt(length(arrival_times))/T, 3), "\n", 
-  "Numeric MLE = ", fit$par, "±", round(1/sqrt(fit$hessian), 3)
-)
+cat(sprintf(
+  "Analytic Solution = %.3f ± %.3f \nNumeric MLE = %.3f ± %.3f", 
+  length(arrival_times)/T_max, 1.96*sqrt(length(arrival_times))/T_max, 
+  fit$par, 1.96/sqrt(fit$hessian)
+))
 ```
 
 
@@ -403,12 +422,12 @@ To get the form of the Hawkes likelihood, first note that the integral in
 $\Lambda(T)$ over $[0, T]$ can be broken down into 
 $$
 [0, t_1] \cup (t_1,t_2] \cup \ldots \cup (t_{N_T - 1}, t_{N_T}] 
-\cup (t_{N_T}, T]
+  \cup (t_{N_T}, T]
 $$ 
 and therefore 
 $$
 \Lambda(T) = \int_0^{t_i} \lambda^*(s) \dd s + \sum_{i=1}^{N_T-1} 
-\int_{t_i}^{t_i + 1} \lambda^*(s) \dd s + \int_{t_{N_T}}^{T} \lambda^*(s) \dd s
+  \int_{t_i}^{t_i + 1} \lambda^*(s) \dd s + \int_{t_{N_T}}^{T} \lambda^*(s) \dd s
 $$
 
 Substituting the Hawkes conditional intensity in @eq-hp_lambda, and using 
@@ -416,13 +435,13 @@ $M(t) \coloneqq \int_0^t \mu(s) \dd s$, the integral term can be written as
 $$
 \begin{aligned}
 \int_{t_i}^{t_{i+1}} \lambda^*(s) \dd s &= \int_{t_i}^{t_{i+1}} 
-\left[ \lambda + \sum_{t_j < s} \mu(s - t_j) \right] \dd s 
-\\
+  \left[ \lambda + \sum_{t_j < s} \mu(s - t_j) \right] \dd s 
+  \\
 &= \lambda (t_{i+1} - t_i) + \sum_{j=1}^i \int_{t_i}^{t_{i+1}} \mu(s - t_j) 
-\dd s 
-\\
+  \dd s 
+  \\
 &= \lambda (t_{i+1} - t_i) + \sum_{j=1}^i \left[ M(t_{i+1} - t_j) - 
-M(t_i - t_j) \right]
+  M(t_i - t_j) \right]
 \end{aligned}
 $$
 
@@ -432,12 +451,12 @@ notation a little and say $T=t_{N_T+1}$. Therefore we can write
 $$
 \begin{aligned}
 \Lambda(T) &= \sum_{i=1}^{N_T} \left\{ \lambda(t_{i+1} - t_i) + 
-\sum_{j=1}^i [M(t_{i+1} - t_j) - M(t_i - t_j)] \right\} 
-\\ 
+  \sum_{j=1}^i [M(t_{i+1} - t_j) - M(t_i - t_j)] \right\} 
+  \\ 
 &= \lambda T + \sum_{i=1}^{N_T} \sum_{j=1}^i [M(t_{i+1} - t_j) - M(t_i - t_j)]
-\\
+  \\
 &= \lambda T + \sum_{i=1}^{N_T}  [M(T - t_i) - M(0)] 
-= \lambda T + \sum_{i=1}^{N_T}  M(T - t_i)
+  = \lambda T + \sum_{i=1}^{N_T}  M(T - t_i)
 \end{aligned}
 $$ {#eq-hawkes_compensator}
 
@@ -446,12 +465,155 @@ Hawkes compensator $\Lambda(T)$ and the Hawkes conditional intensity
 (@eq-hp_lambda) gives us
 
 $$
-l = \sum_{i=1}^{N_T} \log \left[ \lambda + \sum_{j=1}^{i-1} \mu(t_i - t_j) 
-\right] - \lambda T - \sum_{i=1}^{N_T}  M(T - t_i)
+l = \sum_{i=1}^{N_T} \log \left[ \lambda + \sum_{j=1}^{i-1} \mu(t_i - t_j)  
+  \right] - \lambda T - \sum_{i=1}^{N_T}  M(T - t_i)
 $$
 The double sum will mean that for a numeric optimisation routine, we will have 
 to evaluate a $\mathcal{O}([N(T)]^2)$ function for each optimisation step which 
 will scale poorly.
+
+#### Example: Exponential Hawkes Process MLE  {.unnumbered}
+
+For a Hawkes process with an exponential kernel (@eq-hp_exp_kernel), the 
+log-likelihood function is
+$$
+l = \sum_{i=1}^{N_T} \ln \left[ \lambda + \alpha \sum_{j=1}^{i-1} 
+  e^{-\beta (t_i - t_j)} \right] - \Lambda (T)
+$${#eq-exp_hp_loglik}
+where the compensator of the process is, using @eq-hawkes_compensator, 
+$$
+\Lambda(t) = \lambda T + \sum_{i=1}^{N_T}M(T-t_i) 
+  = \lambda T + \frac{\alpha}{\beta} \sum_{i=1}^{N_T} 
+  \left[ 1 - e^{-\beta (T - t_i)} \right]
+$$
+
+The inner sum in @eq-exp_hp_loglik can simplified for faster computation. In 
+particular, for $i \in \left\{2,...,N_T \right\}$, let 
+$A(i) = \sum_{j=1}^{i-1} e^{-\beta(t_i - t_j)}$ (the inner sum) so that we can 
+find the recursive relation
+$$
+\begin{aligned}
+A(i) &= \sum_{j=1}^{i-1} e^{-\beta(t_i - t_j)} = \sum_{j=1}^{i-1} 
+  e^{-\beta(t_i - t_j + t_{i-1} - t_{i-1})} \\
+&= e^{-\beta(t_i - t_{i-1})} \sum_{j=1}^{i-1} e^{-\beta(t_{i-1} - t_j)} 
+  = e^{-\beta(t_i - t_{i-1})}\left(1 +  \sum_{i=1}^{j-2} 
+  e^{-\beta(t_{i-1} - t_j)}  \right) \\
+&= e^{-\beta(t_i - t_{i-1})}(1 + A(i-1))
+\end{aligned}
+$$
+
+With the base case that $A(1) = 0$, the exponential Hawkes likelihood 
+(@eq-exp_hp_loglik) can be rewritten
+$$
+l = \sum_{i=1}^{N_T} \ln \left[ \lambda + \alpha A(i) \right] - \Lambda (T)
+$$ {#eq-exp_hp_loglik_fast}
+
+And the code implementation estimating the parameters of an exponential Hawkes 
+process over $[0, 200]$ with 
+$\boldsymbol{\theta} = (\lambda, \alpha, \beta) = (0.5, 2, 3)$:
+```{r hawkesprocess_mle}
+exp_hp_intensity <- function(theta, t, H_t) {
+  # unpack parameters
+  lambda <- theta[1]
+  alpha <- theta[2]
+  beta <- theta[3]
+  
+  lambda + alpha*sum(exp(-beta*(t - H_t)))
+}
+
+exp_hp_compensator <- function(theta, t, H_t) {
+  # unpack parameters
+  lambda <- theta[1]
+  alpha <- theta[2]
+  beta <- theta[3]
+  
+  if (t <= 0) return(0)
+  lambda*t + (alpha/beta)*sum(1 - exp(-beta*(t - H_t)))
+}
+
+exp_hp_loglik <- function(theta, T_max, H_t) {
+  # there is a speedup for the exponential hawkes log-likelihood that is O(N(T_max))
+  # this is the more expensive O([N(T_max)]^2) computation
+  log_intensities <- sapply(H_t, function(t_i) {
+    past_events <- H_t[H_t < t_i] # Find history by comparing values
+    log(exp_hp_intensity(theta = theta, t = t_i, H_t = past_events))
+  })
+  
+  # total log-likelihood = sum(log(intensities)) - compensator at T
+  sum(log_intensities) - exp_hp_compensator(theta = theta, t = T_max, H_t = H_t)
+}
+
+exp_hp_loglik_fast <- function(theta, T_max, H_t) {
+  lambda <- theta[1]
+  alpha <- theta[2]
+  beta <- theta[3]
+  
+  n <- length(H_t)
+  # Recursive computation of the summation term A(i)
+  A <- numeric(n)
+  if (n > 1) {
+    for (i in 2:n) {
+      A[i] <- exp(-beta * (H_t[i] - H_t[i-1])) * (1 + A[i-1])
+    }
+  }
+  
+  log_intensities <- log(lambda + alpha*A)
+  sum(log_intensities) - exp_hp_compensator(theta, T_max, H_t)
+}
+
+exp_hp_negloglik<- function(theta, T_max, H_t, fast=TRUE) {
+  if (fast) return(-exp_hp_loglik_fast(theta = theta, T_max = T_max, H_t = H_t))
+  else return(-exp_hp_loglik(theta = theta, T_max = T_max, H_t = H_t))
+}
+
+T_max <- 200
+lambda <- 0.5
+alpha <- 2
+beta <- 3;
+
+set.seed(123)
+sim_object <- sim_hp(
+  T_max = T_max, 
+  lambda = lambda, 
+  mu = function(t) {alpha*exp(-beta*t)}
+)
+H_t <- sim_object$events
+
+fit <- optim(
+  par = c(1, 1, 1), 
+  fn = exp_hp_negloglik, 
+  H_t = H_t,
+  T_max = T_max,
+  method = "L-BFGS-B",
+  lower = c(1e-6, 1e-6, 1e-6),
+  hessian = TRUE
+)
+
+mle <- fit$par
+v_cov <- solve(fit$hessian)
+se <- sqrt(diag(v_cov))
+
+cat("Maximum Likelihood Estimates with 95% CIs:\n", sprintf(
+  "lambda_mle = %.3f ± %.3f \n alpha_mle = %.3f ± %.3f \n beta_mle = %.3f ± %.3f", 
+  mle[1], 1.96*se[1], 
+  mle[2], 1.96*se[2], 
+  mle[3], 1.96*se[3]
+))
+
+```
+
+```{r}
+t_grid <- seq(0, T_max, length.out = 2000) 
+intensities <- sapply(t_grid, function(t_i) {
+  past <- H_t[H_t < t_i]
+  lambda + sum(alpha*exp(-beta*(t_i - past)))
+})
+
+plot_base_canvas(c(0, T_max), c(0, max(intensities)*1.1), "Hawkes MLE Fit")
+abline(h = fit$par[1], col = NORD_NIGHT, lty = 3) # Baseline
+add_intensity(t_grid, intensities)
+add_events(H_t)
+```
 
 
 ## References {.unnumbered}
