@@ -299,20 +299,25 @@ residuals.hawkes_fit <- function(object, ...) {
   n <- length(H_t)
   if (n == 0) return(numeric(0))
   
-  lambda <- theta[1]; alpha <- theta[2]; beta <- theta[3]
+  # unpack parameters
+  lambda <- theta[1]
+  alpha <- theta[2]
+  beta <- theta[3]
   
-  # recursive term B[i] = sum_{j<i} exp(-beta*(t_i - t_j))
-  # this is the same 'A' vector from our .exp_hp_intensity_at_events()
+  # get intensities with O(n) method
+  intensity <- .exp_hp_intensity_at_events(theta, H_t)
+  
+  # calculate Compensator at time t_i using markovian property 
   B <- numeric(n)
+  B[1] <- lambda*H_t[1]
   if (n > 1) {
     for (i in 2:n) {
-      B[i] <- exp(-beta * (H_t[i] - H_t[i-1])) * (1 + B[i-1])
+      dt <- H_t[i] - H_t[i-1]
+      B[i] <- B[i-1] + lambda*dt + (intensity[i-1] - lambda + alpha) * 
+        (1/beta) * (1 - exp(-beta*dt))
     }
   }
-  
-  # vectorized calculation of all residuals at once
-  indices <- seq_along(H_t)
-  lambda*H_t + (alpha/beta)*((indices - 1) - B)
+  return(B)
 }
 
 

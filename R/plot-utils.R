@@ -104,5 +104,5 @@ add_counting_process <- function(H_t, T_max, col = "#4C566A") {
     
     intensities[has_past] <- lambda + alpha * (1 + A[last_ev_idx]) * exp(-beta * dt)
   }
-  intensities
+  return(intensities)
 }
