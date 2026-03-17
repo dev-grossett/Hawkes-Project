@@ -107,7 +107,8 @@ sim_pp <- function(T_max, intens, M = NULL) {
 #'   component \eqn{\lambda} of the Hawkes conditional intensity
 #' @param mu A non-negative, non-increasing function - the excitation 
 #'   function/kernel \eqn{\mu(\cdot)} of the Hawkes conditional intensity. Must 
-#'   be a vectorised function
+#'   accept a numeric vector input and return a numeric vector of the same 
+#'   length.
 #'
 #' @return An object of class `point_process_sim`. A list containing:
 #' \itemize{
@@ -147,14 +148,11 @@ sim_hp <- function(T_max, lambda, mu) {
   count <- 0
   
   # initialise simulation objects
-  arrival_times <- c()
   t <- 0
   while (t < T_max) {
-    # Use only the filled portion for intensity
-    current_arrivals <- if (count == 0) numeric(0) else arrival_times[1:count]
     
-    # find new upper bound
-    M <- lambda + sum(mu(t - arrival_times))
+    # find new upper bound, using only the filled portion of arrival_times
+    M <- lambda + sum(mu(t - arrival_times[seq_len(count)]))
     if (is.na(M)) {
       stop("Intensity calculation returned NA. Check your 'mu' function.")
     }
@@ -163,9 +161,9 @@ sim_hp <- function(T_max, lambda, mu) {
     t <- t + stats::rexp(1, M)
     if (t > T_max) break
     
-    current_intensity <- lambda + sum(mu(t - arrival_times))
+    current_intensity <- lambda + sum(mu(t - arrival_times[seq_len(count)]))
     # keep it with some probability
-    if (stats::runif(1, 0, M) <= current_intensity) {
+    if (stats::runif(1) <= current_intensity/M) {
       count <- count + 1
       
       # double the capacity of arrival_times if out of space

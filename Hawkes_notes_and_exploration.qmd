@@ -83,21 +83,84 @@ is a (*simple*) point process.
 These terms are often used interchangeably, although it should be clear from the
 context whether $N(t)$ or $\mathbf{T}$ is being discussed.
 
-::: {#def-poisson_process .definition}
+::: {#def-hpp .definition}
 ## Poisson Process
 
 A counting process $(N(t): t \geq 0)$ is a homogeneous Poisson process with rate
 $\lambda > 0$ if
 
-1.  For any interval $I$, $N(I) \sim \mathrm{Pois}(\lambda |I|)$
+1.  For any interval $I=(a,b]$, $N(I) \sim \mathrm{Poisson}(\lambda |I|)$
 2.  For any $n$ disjoint intervals $I_1, I_2, \ldots, I_n$, the random variables
 $N(I_1), N(I_2), \ldots, N(I_n)$ are independent.
 :::
 
-From this definition we get $$
+Note that property one implies that a homogeneous Poisson process has stationary
+increments, alongside the independent increments from property two.
+
+From this definition we get 
+$$
 \mathbb{P}(N(t) = n) = \frac{(\lambda t)^n e^{-\lambda t}}{n!}, \quad 
 n=0,1,2,\ldots
 $$ {#eq-pois_dist}
+
+From @def-hpp, we can derive the properties of the process over an infinitesimal
+interval $h>0$. Let $I=(t,t+h]$, so $|I|=h$. Using the Taylor expansion 
+$e^{-\lambda h} = 1 - \lambda h + o(h)$, we can derive the following properties 
+as $h \to 0$
+
+1. $$ \begin{aligned} 
+        \mathbb{P}(N(t+h)-N(t)=0) &= e^{-\lambda h} \\ 
+        &= 1 - \lambda h + o(h) 
+      \end{aligned}
+   $$
+2. $$ \begin{aligned}
+        \mathbb{P}(N(t+h)-N(t)=1) &= \lambda h e^{-\lambda h} \\
+        &= \lambda h(1 - \lambda h + o(h)) \\
+        &= \lambda h + o(h) 
+      \end{aligned}
+   $$
+3. $$ \begin{aligned} 
+        \mathbb{P}(N(t+h)-N(t)\geq 2) &= 1 - \mathbb{P}(N(t+h)-N(t)=0) - \mathbb{P}(N(t+h)-N(t)=1) \\
+        &= 1 - (1 - \lambda h + o(h)) - (\lambda h + o(h)) \\
+        &= o(h)
+      \end{aligned}
+   $$
+
+::: {#def-nhpp .definition}
+## Nonhomogeneous Poisson Process
+
+A counting process $(N(t): t \geq 0)$ is a nonhomogeneous Poisson process with
+intensity function $\lambda(t) > 0$ if
+
+1.  For any interval $I=(a,b]$,
+$N(I) \sim \mathrm{Poisson}(\int_a^b \lambda(s) \dd s)$
+2.  For any $n$ disjoint intervals $I_1, I_2, \ldots, I_n$, the random variables
+$N(I_1), N(I_2), \ldots, N(I_n)$ are independent.
+:::
+
+Like we did for the homogeneous Poisson process, we can derive the infinitesimal
+properties of the nonhomogeneous Poisson process. First we note that by the 
+Fundamental Theorem of Calculus 
+$\int_t^{t+h} \lambda(s) \dd s = \lambda(t)h + o(h)$, and the Taylor expansion 
+$e^{-\lambda(t) h} = 1 - \lambda(t) h + o(h)$. Then, as $h \to 0$:
+
+1. $$ \begin{aligned} 
+        \mathbb{P}(N(t+h)-N(t)=0) &= e^{-\lambda(t) h + o(h)} \\
+        &= 1 - \lambda(t) h + o(h) 
+      \end{aligned}
+   $$
+2. $$ \begin{aligned}
+        \mathbb{P}(N(t+h)-N(t)=1) &= (\lambda(t)h + o(h)) e^{-\lambda(t)h + o(h)} \\ 
+        &= (\lambda(t)h + o(h))(1 - \lambda(t)h + o(h)) \\ 
+        &= \lambda(t) h + o(h) 
+      \end{aligned}
+   $$
+3. $$ \begin{aligned} 
+        \mathbb{P}(N(t+h)-N(t)\geq 2) &= 1 - \mathbb{P}(N(t+h)-N(t)=0) - \mathbb{P}(N(t+h)-N(t)=1) \\
+        &= 1 - (1 - \lambda(t)h + o(h)) - (\lambda(t)h + o(h)) \\
+        &= o(h)
+      \end{aligned}
+   $$
 
 ### Conditional Intensity Functions
 
@@ -140,6 +203,9 @@ $\lambda^*(t)$ is $\mathcal{H}(t)$-measurable), then it is called the
 conditional intensity function of $N$.
 :::
 
+We note that $\lambda^*(t)$ is interpreted as its left-continuous modification
+$\lambda^*(t^-)$ to ensure predictability of the counting process $N(\cdot)$.
+
 Lastly, we define the compensator, which is frequently used in parameter
 estimation and goodness of fit testing of point processes.
 
@@ -158,22 +224,37 @@ The Hawkes process is a model for a ‘self-exciting’ counting process, where 
 history of past arrivals increases the chance of subsequent arrivals for a
 period of time.
 
-The Hawkes process is defined by its conditional intensity function (originally
-given in @Hawkes1971_SelfExcitingSpectra)
-
 ::: {#def-hawkes_process .definition}
 ## Hawkes Process
 
-A Hawkes process is a counting process $(N(t): t \geq 0)$ whose conditional 
-intensity function for $t \ge 0$ is 
+Consider $(N(t): t \geq 0)$ a counting process, with associated history 
+$(\mathcal{H}(t): t \geq 0)$, that satisfies
+
 $$
-\lambda^{*}_{t} = \lambda + \sum_{t_i<t} \mu (t - t_i)
-$$ {#eq-hp_lambda} 
-where $\lambda > 0$ is the background arrival rate, 
-$\mu : (0,\infty) \rightarrow [0,\infty)$ is the excitation function (or 
-kernel), and $t_i$ are all the arrival times in the history of the process 
-$\mathcal{H}(u)$.
+\mathbb{P}(N(t+h) - N(t) = m \mid \mathcal{H}(t)) = \begin{cases}
+  1 - \lambda^*(t)h + o(h) &,m=0 \\
+  \lambda^*(t)h + o(h) &,m=1 \\
+  o(h) &,m\geq2 
+\end{cases}
+$$ {#eq-hp_definition} 
+
+Suppose the process' conditional intensity function is of the form 
+$$
+\lambda^*(t) = \lambda + \int_0^t \mu(t - u) \dd N(u)
+$${#eq-hp_lambda_integral} 
+for some $\lambda > 0$ and $\mu: (0,\infty) \to [0, \infty]$ which are called 
+the *background intensity* and *excitation function* respectively. Assume that 
+$\mu(\cdot) \neq 0$ to avoid the trivial case (a homogeneous Poisson process). 
+Such a process $N(\cdot)$ is a Hawkes process.
 :::
+
+Evaluating the stochastic integral in @eq-hp_lambda_integral, we obtain the more
+commonly used version of the Hawkes process' conditional intensity function:
+$$
+\lambda^{*}(t) = \lambda + \sum_{T_i<t} \mu (t - T_i)
+$$ {#eq-hp_lambda} 
+where  $\{T_1,T_2,\ldots\}$ are all the arrival times in the history of 
+the process $\mathcal{H}(t)$.
 
 The most common choice of $\mu$ is the exponentially decaying kernel 
 $$
@@ -197,140 +278,242 @@ $$ {#eq-hp_branchingratio}
 For the process to be stationary with finite mean, the condition $\eta < 1$ is 
 necessary and sufficient.
 
-## Maximum Likelihood Estimation
+## Simulation
 
-#### Example: Exponential MLE  {.unnumbered}
+::: {#prp-lewis .proposition}
+## Lewis' Thinning Algorithm
 
-Below is an example of estimating a parameter from $\mathrm{Exp(\lambda)}$ data 
-using Maximum Likelihood Estimation (MLE). For this problem
+Suppose that events are occurring according to a Poisson process having rate
+$\lambda$, and suppose that, independently of anything that came before, an event
+that occurs at time $t$ is counted with probability $p(t)$. Then the process of
+counted events, $N_c(t)$, constitutes a nonhomogeneous Poisson process with 
+intensity function $\lambda(t) = \lambda p(t)$.
+:::
+
+::: {.proof}
+The proposition is proved by confirming that the process $N_c(t)$ satisfies
+
+a) $N(0) = 0$
+b) The number of events that occur in disjoint time intervals are independent
+c) $\mathbb{P}(N(t+h)-N(t)=1) = \lambda(t)h + o(h)$
+d) $\mathbb{P}(N(t+h)-N(t)\geq 2) = o(h)$
+
+As all events (not just the counted events) satisfy (a), (b), and (d), and we
+count events independently, the corresponding result holds for the process
+$N_c(t)$.
+
+For (c), first we define for brevity $\Delta N(t,h) = N(t+h)-N(t)$. Then, by the
+law of total probability
 $$
 \begin{aligned}
-L(\lambda \mid \mathbf{t}) &= \prod_{i=1}^n \lambda e^{-\lambda t_i} \\
-l(\lambda \mid \mathbf{t}) &= n \log \lambda - \lambda \sum_{i=1}^n t_i
+\mathbb{P}(\Delta N_c(t,h)) &= \mathbb{P}(\Delta N_c(t,h)=1 \mid \Delta N(t,h)=0) \times \mathbb{P}(\Delta N(t,h)=0) \\
+&\quad + \mathbb{P}(\Delta N_c(t,h)=1 \mid \Delta N(t,h)=1) \times \mathbb{P}(\Delta N(t,h)=1) \\
+&\quad + \mathbb{P}(\Delta N_c(t,h)=1 \mid \Delta N(t,h)\geq 2) \times \mathbb{P}(\Delta N(t,h)\geq 2) \\
+&= 0 + (p(t) + o(1))(\lambda h + o(h)) + O(1)o(h) \\
+&= \lambda p(t) + o(h)
+\end{aligned}
+$$
+Therefore $N_c(t)$ is a Poisson process with intensity 
+$\lambda p(t)$ on $[0, T]$
+
+:::
+
+Thus to generate the desired nonhomogeneous Poisson process, one can simulate 
+from a homogeneous Poisson process with rate $\tilde{\lambda} \geq \lambda(t)$ 
+for all $t \in [0, T]$, with $p(t) = \lambda(t) / \tilde{\lambda}$.
+
+
+::: {#prp-ogata .proposition}
+## Ogata's Thinning Construction for a Hawkes Process
+Suppose candidate events occur according to a nonhomogeneous Poisson process 
+with intensity $M(t)$ which is a predictable process satisfying 
+$\lambda(t \mid \mathcal{H}(t)) \leq M(t)$ for all $t \in [0, T]$. Each 
+candidate event occurring at time $t$ is accepted independently with probability
+
+$$
+p(t \mid \mathcal{H}(t)) = \frac{\lambda(t \mid \mathcal{H}(t))}{M(t)}.
+$$
+
+Then the process of accepted events $N_c(t)$ is a point process with conditional
+intensity $\lambda(t \mid \mathcal{H}(t))$ on $[0, T]$.
+
+:::
+
+::: {.proof}
+
+We verify that $N_c(t)$ satisfies the defining infinitesimal properties of a 
+point process with conditional intensity $\lambda(t \mid \mathcal{H}(t))$:
+
+a. $N_c(0) = 0$
+b. $\mathbb{P}(\Delta N_c(t,h)=1 \mid \mathcal{H}(t)) = \lambda(t \mid \mathcal{H}(t))h + o(h)$
+c. $\mathbb{P}(\Delta N_c(t,h)\ge2 \mid \mathcal{H}(t)) = o(h)$
+
+Properties (a) and (c) follow directly from the corresponding properties of the 
+candidate Poisson process.
+
+The result for (b) is obtained by the law of total probability,
+
+$$
+\begin{aligned}
+\mathbb{P}(\Delta N_c(t,h)=1 \mid \mathcal{H}(t))
+&=
+\mathbb{P}(\Delta N_c(t,h)=1 \mid \Delta N(t,h)=0,\mathcal{H}(t))
+\mathbb{P}(\Delta N(t,h)=0) \\
+&\quad+
+\mathbb{P}(\Delta N_c(t,h)=1 \mid \Delta N(t,h)=1,\mathcal{H}(t))
+\mathbb{P}(\Delta N(t,h)=1) \\
+&\quad+
+\mathbb{P}(\Delta N_c(t,h)=1 \mid \Delta N(t,h)\ge2,\mathcal{H}(t))
+\mathbb{P}(\Delta N(t,h)\ge2) \\
+&= 0 + \left(\frac{\lambda(t \mid \mathcal{H}(t))}{M(t)} + o(1)\right)(M(t) h + o(h)) + O(1)o(h) \\
+&= \lambda(t \mid \mathcal{H}(t))h + o(h)
 \end{aligned}
 $$
 
-```{r exp_mle}
-# generate Exp(λ) variables, with each column a new realisation
-generate_exp_matrix <- function(n_obs, n_trials, lambda_true, seed = NULL) {
-  # set seed if given
-  if (!is.null(seed)) {set.seed(seed)}
-  
-  # simulate matrix of exponential samples
-  matrix(
-    rexp(n_obs*n_trials, rate = lambda_true),
-    nrow = n_obs,
-    ncol = n_trials
-  )
-}
+so $N_c(t)$ has conditional intensity $\lambda(t \mid \mathcal{H}(t))$.
 
-# log-likelihood of Exp(λ) data
-exp_loglik <- function(lambda, t) {
-  n <- length(t)
-  n*log(lambda) - lambda*sum(t)
-}
+:::
 
-# since optim minimises by default
-exp_negloglik <- function(lambda, t) {
-  -exp_loglik(lambda, t)
-}
+::: {.remark}
 
-# take t matrix and create a dataframe of mle parameter estimates and std errors
-mle_results <- function(t_mat) {
-  n <- ncol(t_mat)
-  
-  # to store results
-  results <- data.frame(
-    trial = 1:n, 
-    sample_size = rep(nrow(t_mat), n),
-    mean = rep(NA, n),
-    se = rep(NA, n),
-    lower = rep(NA, n),
-    upper = rep(NA, n)
-  )
-  
-  # mle fit for each trial
-  for (i in 1:n) {
-    fit <- optim(
-      par = 1,
-      fn = exp_negloglik,
-      t = t_mat[, i],
-      method = "L-BFGS-B",
-      lower = 1e-8,
-      hessian = TRUE
-    )
-    results[i, "mean"] <- fit$par
-    results[i, "se"] <- sqrt(1 / fit$hessian) 
-  }
-  results$lower <- results$mean - 1.96*results$se
-  results$upper <- results$mean + 1.96*results$se
-  
-  results
-}
+In Ogata's algorithm the dominating rate $M(t)$ is implemented as a piecewise constant bound $M_n$ between successive accepted events. Candidate arrivals are generated from a homogeneous Poisson process with rate $M_n$, and the bound is updated whenever a new event occurs.
 
-lambda_true <- 2
-t_mat <- generate_exp_matrix(
-  n_obs = 100, 
-  n_trials = 500, 
-  lambda_true = lambda_true, 
-  seed = 5
-)
-results <- mle_results(t_mat)
-```
+:::
 
-```{r exp_mle_results_table, echo=FALSE}
-summary_table <- data.frame(
-  Parameter = "λ",
-  MC_Trials = nrow(results),
-  Sample_Size = max(results$sample_size),
-  Mean = mean(results$mean),
-  Bias = mean(results$mean) - lambda_true,
-  # SD = sd(results$mean),
-  SD = sqrt(mean((results$mean - mean(results$mean))^2)),
-  RMSE = sqrt(mean((results$mean - lambda_true)^2)),
-  Coverage_95 = mean(results$lower <= lambda_true &
-                  lambda_true <= results$upper),
-  MC_Error = sd(results$mean) / sqrt(nrow(results))
-)
+## Maximum Likelihood Estimation
 
-knitr::kable(
-  summary_table,
-  digits = c(NA, 0, 0, 4, 4, 4, 4, 4, 4),
-  col.names = c(
-    "Parameter", 
-    "MC Trials",
-    "Sample Size",
-    "Mean", 
-    "Bias", 
-    "SD", 
-    "RMSE", 
-    "95% Coverage", 
-    "MC Error"
-  )
-)
-```
+<!-- #### Example: Exponential MLE  {.unnumbered} -->
+
+<!-- Below is an example of estimating a parameter from $\mathrm{Exp(\lambda)}$ data -->
+<!-- using Maximum Likelihood Estimation (MLE). For this problem -->
+<!-- $$ -->
+<!-- \begin{aligned} -->
+<!-- L(\lambda \mid \mathbf{t}) &= \prod_{i=1}^n \lambda e^{-\lambda t_i} \\ -->
+<!-- \ell(\lambda \mid \mathbf{t}) &= n \log \lambda - \lambda \sum_{i=1}^n t_i -->
+<!-- \end{aligned} -->
+<!-- $$ -->
+
+<!-- ```{r exp_mle} -->
+<!-- # generate Exp(λ) variables, with each column a new realisation -->
+<!-- generate_exp_matrix <- function(n_obs, n_trials, lambda_true, seed = NULL) { -->
+<!--   # set seed if given -->
+<!--   if (!is.null(seed)) {set.seed(seed)} -->
+
+<!--   # simulate matrix of exponential samples -->
+<!--   matrix( -->
+<!--     rexp(n_obs*n_trials, rate = lambda_true), -->
+<!--     nrow = n_obs, -->
+<!--     ncol = n_trials -->
+<!--   ) -->
+<!-- } -->
+
+<!-- # log-likelihood of Exp(λ) data -->
+<!-- exp_loglik <- function(lambda, t) { -->
+<!--   n <- length(t) -->
+<!--   n*log(lambda) - lambda*sum(t) -->
+<!-- } -->
+
+<!-- # since optim minimises by default -->
+<!-- exp_negloglik <- function(lambda, t) { -->
+<!--   -exp_loglik(lambda, t) -->
+<!-- } -->
+
+<!-- # take t matrix and create a dataframe of mle parameter estimates and std errors -->
+<!-- mle_results <- function(t_mat) { -->
+<!--   n <- ncol(t_mat) -->
+
+<!--   # to store results -->
+<!--   results <- data.frame( -->
+<!--     trial = 1:n,  -->
+<!--     sample_size = rep(nrow(t_mat), n), -->
+<!--     mean = rep(NA, n), -->
+<!--     se = rep(NA, n), -->
+<!--     lower = rep(NA, n), -->
+<!--     upper = rep(NA, n) -->
+<!--   ) -->
+
+<!--   # mle fit for each trial -->
+<!--   for (i in 1:n) { -->
+<!--     fit <- optim( -->
+<!--       par = 1, -->
+<!--       fn = exp_negloglik, -->
+<!--       t = t_mat[, i], -->
+<!--       method = "L-BFGS-B", -->
+<!--       lower = 1e-8, -->
+<!--       hessian = TRUE -->
+<!--     ) -->
+<!--     results[i, "mean"] <- fit$par -->
+<!--     results[i, "se"] <- sqrt(1 / fit$hessian)  -->
+<!--   } -->
+<!--   results$lower <- results$mean - 1.96*results$se -->
+<!--   results$upper <- results$mean + 1.96*results$se -->
+
+<!--   results -->
+<!-- } -->
+
+<!-- lambda_true <- 2 -->
+<!-- t_mat <- generate_exp_matrix( -->
+<!--   n_obs = 100,  -->
+<!--   n_trials = 500,  -->
+<!--   lambda_true = lambda_true,  -->
+<!--   seed = 5 -->
+<!-- ) -->
+<!-- results <- mle_results(t_mat) -->
+<!-- ``` -->
+
+<!-- ```{r exp_mle_results_table, echo=FALSE} -->
+<!-- summary_table <- data.frame( -->
+<!--   Parameter = "λ", -->
+<!--   MC_Trials = nrow(results), -->
+<!--   Sample_Size = max(results$sample_size), -->
+<!--   Mean = mean(results$mean), -->
+<!--   Bias = mean(results$mean) - lambda_true, -->
+<!--   # SD = sd(results$mean), -->
+<!--   SD = sqrt(mean((results$mean - mean(results$mean))^2)), -->
+<!--   RMSE = sqrt(mean((results$mean - lambda_true)^2)), -->
+<!--   Coverage_95 = mean(results$lower <= lambda_true & -->
+<!--                   lambda_true <= results$upper), -->
+<!--   MC_Error = sd(results$mean) / sqrt(nrow(results)) -->
+<!-- ) -->
+
+<!-- knitr::kable( -->
+<!--   summary_table, -->
+<!--   digits = c(NA, 0, 0, 4, 4, 4, 4, 4, 4), -->
+<!--   col.names = c( -->
+<!--     "Parameter",  -->
+<!--     "MC Trials", -->
+<!--     "Sample Size", -->
+<!--     "Mean",  -->
+<!--     "Bias",  -->
+<!--     "SD",  -->
+<!--     "RMSE",  -->
+<!--     "95% Coverage",  -->
+<!--     "MC Error" -->
+<!--   ) -->
+<!-- ) -->
+<!-- ``` -->
 
 
-```{r exp_mle_plot, echo=FALSE}
-cover <- results$lower <= 2 & results$upper >= 2
-cols <- ifelse(cover, NORD_SLATE, NORD_RED)
-widths <- ifelse(cover, 0.5, 1.5) 
+<!-- ```{r exp_mle_plot, echo=FALSE} -->
+<!-- cover <- results$lower <= 2 & results$upper >= 2 -->
+<!-- cols <- ifelse(cover, NORD_SLATE, NORD_RED) -->
+<!-- widths <- ifelse(cover, 0.5, 1.5)  -->
 
-plot_base_canvas(
-  xlim = c(min(results$trial), max(results$trial)), 
-  ylim = range(results$lower, results$upper),
-  title = "Coverage of 95% CI",
-  xlab = "Simulation",
-  ylab = expression(hat(lambda))
-)
-points(results$trial, results$mean, col = cols, pch = 16, cex = 0.6)
-segments(
-  results$trial, results$lower,
-  results$trial, results$upper,
-  col = cols, lwd = widths
-)
-abline(h = 2, lwd = 2)
-```
+<!-- plot_base_canvas( -->
+<!--   xlim = c(min(results$trial), max(results$trial)),  -->
+<!--   ylim = range(results$lower, results$upper), -->
+<!--   title = "Coverage of 95% CI", -->
+<!--   xlab = "Simulation", -->
+<!--   ylab = expression(hat(lambda)) -->
+<!-- ) -->
+<!-- points(results$trial, results$mean, col = cols, pch = 16, cex = 0.6) -->
+<!-- segments( -->
+<!--   results$trial, results$lower, -->
+<!--   results$trial, results$upper, -->
+<!--   col = cols, lwd = widths -->
+<!-- ) -->
+<!-- abline(h = 2, lwd = 2) -->
+<!-- ``` -->
 
 ::: {#thm-point_process_likelihood}
 ## Point Process Likelihood
@@ -346,7 +529,7 @@ L(\boldsymbol{\theta} \mid \mathbf{t})= \left[ \prod_{i=1}^{N_T} \lambda^*(t_i
 $$ {#eq-pp_likelihood}
 and the log-likelihood function is
 $$
-l(\boldsymbol{\theta} \mid \mathbf{t}) = \sum_{i=1}^{N_T} \log(\lambda^*(t_i \mid
+\ell(\boldsymbol{\theta} \mid \mathbf{t}) = \sum_{i=1}^{N_T} \log(\lambda^*(t_i \mid
   \boldsymbol{\theta}, \mathbf{t})) - \Lambda(T \mid \boldsymbol{\theta}, \mathbf{t})
 $$ {#eq-pp_loglikelihood}
 :::
@@ -354,7 +537,7 @@ $$ {#eq-pp_loglikelihood}
 For brevity we will not keep writing the observation vector $\mathbf{t}$ and the
 parameter vector $\boldsymbol{\theta}$, so in that notation 
 $L = L(\boldsymbol{\theta} \mid \mathbf{t})$, 
-$l = l(\boldsymbol{\theta} \mid \mathbf{t})$, 
+$\ell = \ell(\boldsymbol{\theta} \mid \mathbf{t})$, 
 $\lambda^*(t_i) = \lambda^*(t_i \mid \boldsymbol{\theta}, \mathbf{t})$, and
 $\Lambda(t) = \Lambda(t \mid \boldsymbol{\theta}, \mathbf{t})$.
 
@@ -365,11 +548,11 @@ For a simple example we'll estimate a Poisson process' parameter using MLE and
 the form of the log-likelihood in @eq-pp_loglikelihood. In this case, 
 $\lambda^*(t) = \lambda$ and the compensator $\Lambda(t) = \lambda t$. Therefore
 $$
-l = N_T \log \lambda - \lambda T
+\ell = N_T \log \lambda - \lambda T
 $$
 
 The value of $\lambda$ that maximises this is easily found by setting 
-$\frac{\dd l}{\dd \lambda}=0$ and solving for $\lambda$, giving 
+$\frac{\dd \ell}{\dd \lambda}=0$ and solving for $\lambda$, giving 
 $$
 \hat{\lambda} = N_T/T
 $$
@@ -465,7 +648,7 @@ Hawkes compensator $\Lambda(T)$ and the Hawkes conditional intensity
 (@eq-hp_lambda) gives us
 
 $$
-l = \sum_{i=1}^{N_T} \log \left[ \lambda + \sum_{j=1}^{i-1} \mu(t_i - t_j)  
+\ell = \sum_{i=1}^{N_T} \log \left[ \lambda + \sum_{j=1}^{i-1} \mu(t_i - t_j)  
   \right] - \lambda T - \sum_{i=1}^{N_T}  M(T - t_i)
 $$
 The double sum will mean that for a numeric optimisation routine, we will have 
@@ -477,7 +660,7 @@ will scale poorly.
 For a Hawkes process with an exponential kernel (@eq-hp_exp_kernel), the 
 log-likelihood function is
 $$
-l = \sum_{i=1}^{N_T} \ln \left[ \lambda + \alpha \sum_{j=1}^{i-1} 
+\ell = \sum_{i=1}^{N_T} \ln \left[ \lambda + \alpha \sum_{j=1}^{i-1} 
   e^{-\beta (t_i - t_j)} \right] - \Lambda (T)
 $${#eq-exp_hp_loglik}
 where the compensator of the process is, using @eq-hawkes_compensator, 
@@ -505,7 +688,7 @@ $$
 With the base case that $A(1) = 0$, the exponential Hawkes likelihood 
 (@eq-exp_hp_loglik) can be rewritten
 $$
-l = \sum_{i=1}^{N_T} \ln \left[ \lambda + \alpha A(i) \right] - \Lambda (T)
+\ell = \sum_{i=1}^{N_T} \ln \left[ \lambda + \alpha A(i) \right] - \Lambda (T)
 $$ {#eq-exp_hp_loglik_fast}
 
 And the code implementation estimating the parameters of an exponential Hawkes 
@@ -650,7 +833,7 @@ $$
 $$ {#eq-hp_marked_lambda_likelihood} 
 and the log-likelihood is
 $$
-l(\theta \mid (t_1,m_1),\ldots,(t_n,m_n),T) = \sum_{i=1}^n \log \lambda_g^*(t_i)
+\ell(\theta \mid (t_1,m_1),\ldots,(t_n,m_n),T) = \sum_{i=1}^n \log \lambda_g^*(t_i)
   + \sum_{i=1}^n f^*(m_i \mid t_i) - \int_0^T \lambda_g^*(s) \dd s
 $$ {#eq-hp_marked_lambda_loglikelihood} 
 
@@ -661,18 +844,18 @@ intensity process.
 For unpredictable marks:
 $$
 \begin{aligned}
-l(\theta \mid (t_1,m_1),\ldots,(t_n,m_n),T) &= \sum_{i=1}^n \log \lambda_g^*(t_i)
+\ell(\theta \mid (t_1,m_1),\ldots,(t_n,m_n),T) &= \sum_{i=1}^n \log \lambda_g^*(t_i)
   - \int_0^T \lambda_g^*(s) \dd s + \sum_{i=1}^n f(m_i \mid t_i)  \\
-&= l_{\lambda} + l_f
+&= \ell_{\lambda} + \ell_f
 \end{aligned}
 $$ {#eq-hp_marked_lambda_loglikelihood2} 
-where $l_{\lambda}$ is the log-likelihood function for the ground intensity 
-process, and $l_f$ is the log-likelihood function for the mark density.
+where $\ell_{\lambda}$ is the log-likelihood function for the ground intensity 
+process, and $\ell_f$ is the log-likelihood function for the mark density.
 $$
 \begin{aligned}
-l_{\lambda}(\theta_{\lambda} \mid (t_1,m_1),\ldots,(t_n,m_n),T) &= 
+\ell_{\lambda}(\theta_{\lambda} \mid (t_1,m_1),\ldots,(t_n,m_n),T) &= 
   \sum_{i=1}^n \lambda_g^*(t_i) - \int_0^T \lambda_g^*(s) \dd s \\
-l_f(\theta_f \mid (t_1,m_1),\ldots,(t_n,m_n),T) &= 
+\ell_f(\theta_f \mid (t_1,m_1),\ldots,(t_n,m_n),T) &= 
   \sum_{i=1}^n f(m_i \mid t_i)
 \end{aligned}
 $$
@@ -680,7 +863,6 @@ $\theta_{\lambda}$ is the parameter vector for the ground intensity process and
 $\theta_f$ is the parameter vector for the mark density. The benefit of the 
 unpredictable mark assumption is that it allows this separable form of the 
 log-likelihood function which means each component can be maximised separately.
-
 
 
 ## References {.unnumbered}
