@@ -14,8 +14,7 @@ sim_hp(T_max, lambda, mu)
 component \eqn{\lambda} of the Hawkes conditional intensity}
 
 \item{mu}{A non-negative, non-increasing function - the excitation
-function/kernel \eqn{\mu(\cdot)} of the Hawkes conditional intensity. Must
-be a vectorised function}
+function/kernel \eqn{\mu(\cdot)} of the Hawkes conditional intensity.}
 }
 \value{
 An object of class \code{point_process_sim}. A list containing:
@@ -28,13 +27,17 @@ An object of class \code{point_process_sim}. A list containing:
 }
 \description{
 Simulation of a Hawkes process using Ogata's modified thinning algorithm,
-following Chapter 4 (Algorithm 2) of Laub, Taimre, and Pollett (2021). This
-is similar to the thinning method for an inhomogeneous Poisson process, but
-in this case we have no a.s. asymptotic bound \eqn{M} for the conditional
-intensity \eqn{\lambda^*(t)}. Instead, we restrict the function space to be
-only non-increasing functions of \eqn{t}, which allows us to simply use the
-value of \code{fn(t_i)} where \eqn{t_i} is the time just after an arrival, which
-is updated after each arrival
+following Chapter 4 (Algorithm 2) of Laub, Taimre, and Pollett (2021).
+}
+\details{
+This method is similar to the thinning method for an inhomogeneous Poisson
+process. However, since the Hawkes intensity depends on the event history, a
+global upper bound for the conditional intensity is typically not available.
+Instead, we assume that the excitation function \eqn{\mu(\cdot)} is
+non-increasing. This ensures that, between arrivals, the conditional
+intensity is non-increasing in time. As a result, the current intensity can
+be used as a valid local upper bound for the next candidate arrival, which is
+updated after each event.
 }
 \examples{
 # simulate a Hawkes process with background rate 1 and Exp(2) kernel
