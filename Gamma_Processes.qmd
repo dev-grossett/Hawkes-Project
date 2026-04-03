@@ -225,7 +225,7 @@ this approximation is negligible.
 ```{r}
 gp_from_dp <- function(alpha, beta, g0 = rexp, k_trunc = 100, ...) {
   gamma <- rgamma(1, alpha, rate = beta)
-  dp <- dp_stickbreak(alpha = a, g0 = g0, k_trunc = k)
+  dp <- dp_stickbreak(alpha = alpha, g0 = g0, k_trunc = k_trunc)
   return(list(
     theta = dp$theta, 
     weights = gamma*dp$weights, 
