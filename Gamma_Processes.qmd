@@ -1,0 +1,272 @@
+---
+title: "Gamma Processes"
+author: "Devon Grossett"
+format: 
+  html:
+    css: styles.css
+    theme: cosmo
+    code-fold: false
+bibliography: Hawkes_Bibtex.bib
+---
+
+## Dirichlet Process
+
+::: {#def-dirichlet_process .definition}
+## Dirichlet Process -- DP [@Muller2015_BayesianNonparametrics])
+
+Let $\alpha > 0$ and $G_0$ be a probability measure defined on $S$. A DP with 
+parameters $(\alpha, G_0)$ is a random probability measure $G$ defined on $S$
+which assigns probability $G(B)$ to every (measurable) set $B$ such that for 
+each (measurable) finite partition $\{B_1,\ldots,B_k\}$ of $S$, the joint 
+distribution of the vector $(G(B_1),\ldots,G(B_k))$ is the Dirichlet 
+distribution with parameters
+$$
+(\alpha G_0(B_1),\ldots,\alpha G_0(B_k))
+$$
+:::
+
+The process is usually denoted as $\mathrm{DP}(\alpha G_0)$, or 
+$\mathrm{DP}(\alpha, G_0)$. The parameter $\alpha$ is called the precision or 
+total mass parameter and $G_0$ is the centering measure.
+
+**Stick Breaking Construction**  A useful constructive definition of a DP 
+random probability measure is given by Sethurman (1994) and based on the 
+discrete nature of the process $G(\cdot) = \sum_{k=1}^\infty \tilde{w}_k \delta_{\theta_k}(\cdot)$.
+Formally, let $\tilde{w}_k = v_k \prod_{\ell<k}(1-v_{\ell})$ with 
+$v_{\ell}\stackrel{iid}{\sim} \mathrm{Beta}(1, \alpha)$ and $\theta_k\stackrel{iid}{\sim} G_0$, 
+where $\{v_k\}$ and $\{\theta_k\}$ are independent. Then 
+$$
+G(\cdot) = \sum_{k=1}^\infty \tilde{w}_k\delta_{\theta_k}(\cdot)
+$$
+defines a $\mathrm{DP}(\alpha G_0)$ random measure. 
+
+In reality, we can choose some $k=K$ at which to truncate the series where 
+beyond it, the values of $\tilde{w}_k$ become negligible. At that point, we can
+set $v_K=1$, i.e. no stick breaking beyond this point.
+
+```{r}
+dp_stickbreak <- function(alpha, g0 = rexp, k_trunc = 100, ...) {
+  # draw atoms from G_0
+  theta <- g0(k_trunc, ...)
+  
+  # i.i.d. beta draws of v_k, truncate and set final value to 1
+  v <- c(rbeta(k_trunc - 1, 1, alpha), 1)
+  # stick remaining before each break
+  remaining <- cumprod(c(1, 1 - v[-k_trunc]))
+  # weights, with sum to one constraint
+  w <- v*remaining
+  w[k_trunc] <- 1 - sum(w[-k_trunc])
+  
+  return(list(theta = theta, weights = w, k_trunc = k_trunc))
+}
+```
+
+An example with the base probability measure $H_0 \sim N(0,1)$, to visualise 
+what the draws of a DP look like with varying $\alpha$.
+
+```{r}
+set.seed(1234)
+par(mfrow = c(2, 2), mar = c(4, 5, 3, 1), oma = c(0, 0, 2, 0))
+
+alphas <- c(1, 5, 20, 100)
+truncs <- c(100, 200, 500, 2000) 
+
+for (j in 1:4) {
+  a <- alphas[j]
+  k <- truncs[j]
+  
+  plot(NULL, xlim = c(-4, 4), ylim = c(0, 1),
+       xlab = expression(t), ylab = expression(G(group("[", list(0, t), "]"))),
+       main = bquote(alpha == .(a)))
+  
+  # add the theoretical Normal CDF (pnorm) in red
+  curve(pnorm(x), from = -4, to = 4, col = "red", lwd = 2, add = TRUE)
+  
+  # draw 50 DP realisations
+  for (i in 1:50) {
+    # Using rnorm for the base measure g0
+    dp <- dp_stickbreak(alpha = a, g0 = rnorm, k_trunc = k)
+    ord <- order(dp$theta)
+    lines(dp$theta[ord], cumsum(dp$weights[ord]), 
+          type = "s", col = rgb(0, 0, 0, 0.1))
+  }
+}
+
+# Add an overall title to the 2x2 grid
+mtext(expression(paste("50 DP Realizations with ", G[0], " ~ N(0,1)")), 
+      outer = TRUE, cex = 1.2, line = 0)
+```
+
+The Dirichlet Process is conjugate with respect to the sampling model 
+$$
+y_i \mid G \stackrel{iid}{\sim} G,\quad i=1,\ldots,n
+$$
+such that if $G \sim \mathrm{DP}(\alpha G_0)$, then
+$$
+G \mid y_1, \ldots, y_n \sim \mathrm{DP}\left(\alpha+n, 
+  \frac{\alpha G_0 + \sum_{i=1}^n \delta_{y_i}}{\alpha + n}\right)
+$$
+
+```{r}
+# function to sample from the posterior based on a DP(alpha, g0) prior
+dp_post_stickbreak <- function(alpha, g0 = rexp, k_trunc = 100, obs, ...) {
+  # helper function for simulation from centering measure of posterior DP
+  rgn <- function(n_samples = 1, obs, alpha0, g00 = rnorm, ...) {
+    prob_new <- alpha0/(alpha0 + length(obs))
+    samples <- replicate(n_samples, {
+      if (runif(1) < prob_new) {
+        g00(1, ...)
+      } else {
+        sample(obs, 1)
+      }
+    })
+  }
+  dp_stickbreak(alpha = alpha + length(obs), g0 = rgn, k_trunc = k_trunc, 
+                alpha0 = alpha, g00 = g0, obs = obs)
+}
+```
+
+Lets imagine we observe some data from a mixture of normals 
+$Y_i \sim 0.5N_1 + 0.5N_2$, $i=1,\ldots,n$ with 
+$\mu_1=-1,\mu_2=1,\sigma_1^2=\sigma_2^2=0.5$ and $n=100$.
+
+```{r}
+set.seed(12345)
+
+p <- rbinom(100, 1, 0.5)
+y <- p*rnorm(100, -1, 0.5) + (1 - p)*rnorm(100, 1, 0.5)
+grid_x <- seq(-4, 4, length.out = 500)
+par(mfrow = c(2, 2), mar = c(4, 5, 3, 1), oma = c(0, 0, 2, 0))
+
+for (j in 1:4) {
+  a <- alphas[j]
+  k <- truncs[j]
+  
+  plot(NULL, xlim = c(-4, 4), ylim = c(0, 1),
+       xlab = expression(t), ylab = expression(G(group("[", list(0, t), "]"))),
+       main = bquote(alpha == .(a)))
+  
+  all_cdfs <- matrix(0, nrow = 500, ncol = 50)
+  
+  # draw 50 posterior DP realisations
+  for (i in 1:50) {
+    dp <- dp_post_stickbreak(alpha = a, g0 = rnorm, k_trunc = k, obs = y)
+    ord <- order(dp$theta)
+    
+    f_emp <- stepfun(dp$theta[ord], c(0, cumsum(dp$weights[ord])))
+    all_cdfs[, i] <- f_emp(grid_x)
+    
+    lines(dp$theta[ord], cumsum(dp$weights[ord]), 
+          type = "s", col = rgb(0, 0, 0, 0.1))
+    
+    legend("topleft", 
+       legend = c("Posterior Mean", "True G"), 
+       col = c("black", "red"), 
+       lwd = c(1, 2), 
+       # lty = c(1, 2),
+       bty = "n",  
+       cex = 0.8) 
+  }
+  
+  curve(0.5*pnorm(x, -1, 0.5) + 0.5*pnorm(x, 1, 0.5), 
+        from = -4, to = 4, col = "red", lwd = 2, add = TRUE)
+  
+  mean_cdf <- rowMeans(all_cdfs)
+  lines(grid_x, mean_cdf, col = "black")
+}
+
+mtext(expression(paste("50 Posterior DP Realizations from prior DP(", alpha, ", N(0,1))")), 
+      outer = TRUE, cex = 1.2, line = 0)
+```
+
+## Gamma Process Prior
+
+::: {#def-gamma_process .definition}
+## Gamma Process [@Phadia2016_PriorProcesses])
+
+Let $\{Z_t\}_{t\geq0}$ be a stochastic process such that (i) $Z_0=0$, (ii) $Z_t$
+has independent increments in non-overlapping intervals; and (iii) for $t>s$, 
+the increment 
+$$
+(Z_t - Z_s) \sim \mathrm{Gamma}(c(\alpha(t)-\alpha(s)),c)
+$$ 
+where $c>0$ is a constant and $\alpha(t)$, $t>0$ be an increasing left-continuous 
+function such that $\alpha(0)=0$. Then $Z_t$ is said to be a Gamma Process with 
+parameters $c\alpha(t)$ and $c$ and denoted $\mathrm{GaP}(c\alpha(t),c)$.
+:::
+
+Thus we can view a Gamma Process as an increasing process with random 
+increments, where the amount of increase over any interval follows a Gamma 
+distribution. In Bayesian applications, the random non-negative measure $G$ on
+$\mathbb{R}^+$ created by the Gamma Process (where $G([0,t])=Z_t$) can be used 
+as a prior over non-negative finite measures, written as
+$$
+G \sim \mathrm{GaPP}(\alpha H_0,\beta)
+$$
+where we have reparameterised to have shape parameter $\alpha>0$, rate parameter 
+$\beta > 0$, and a base probability measure over the space $\Theta=\mathbb{R}^+$.
+
+A draw from a Gamma Process can be constructed from a DP draw by first drawing a 
+random probability measure $\tilde{G} \sim \mathrm{DP}(\alpha H_0)$, and then 
+scaling the resulting weights by a random total mass 
+$\gamma \sim \mathrm{Gamma}(\alpha,\beta)$.
+
+Using the stick breaking construction of the DP, this leads to the following
+representation
+$$
+G(\cdot) = \gamma \sum_{k=1}^\infty v_k \prod_{\ell < k} (1-v_\ell) \delta_{\theta_k}(\cdot)
+$$
+where $\gamma \sim \mathrm{Gamma}(\alpha,\beta)$, 
+$\theta_k \stackrel{iid}{\sim} H_0$, and
+$v_k \stackrel{iid}{\sim} \mathrm{Beta}(1,\alpha)$ for $k=1,2,\ldots$. As above
+for the DP, we truncate the weights at some $k=K$ sufficiently large so that 
+this approximation is negligible.
+
+```{r}
+gp_from_dp <- function(alpha, beta, g0 = rexp, k_trunc = 100, ...) {
+  gamma <- rgamma(1, alpha, rate = beta)
+  dp <- dp_stickbreak(alpha = a, g0 = g0, k_trunc = k)
+  return(list(
+    theta = dp$theta, 
+    weights = gamma*dp$weights, 
+    gamma = gamma,
+    k_trunc = dp$k_trunc
+  ))
+}
+```
+
+An example of draws of a Gamma process with base measure 
+$H_0 \sim \mathrm{Exp}(1)$, where we have shown plots of the cumulative measure
+$G([0,t])$
+
+```{r}
+set.seed(123456)
+par(mfrow = c(2, 2), mar = c(4, 5, 3, 1), oma = c(0, 0, 2, 0))
+
+alphas <- c(1, 5, 20, 50)
+betas <- alphas
+truncs <- c(100, 200, 500, 2000) 
+
+for (j in 1:4) {
+  a <- alphas[j]
+  b <- betas[j]
+  k <- truncs[j]
+  
+  plot(NULL, xlim = c(0, 5), ylim = c(0, 2),
+       xlab = expression(t), ylab = expression(G(group("[", list(0, t), "]"))),
+       main = bquote(alpha == .(a) ~","~ beta ==.(b)))
+  
+  # add the theoretical Normal CDF (pnorm) in red
+  curve(pexp(x), from = 0, to = 5, col = "red", lwd = 2, add = TRUE)
+  
+  # draw 50 DP realisations
+  for (i in 1:50) {
+    # Using rnorm for the base measure g0
+    gp <- gp_from_dp(alpha = a, beta = b, g0 = rexp, k_trunc = k)
+    ord <- order(gp$theta)
+    lines(gp$theta[ord], cumsum(gp$weights[ord]), 
+          type = "s", col = rgb(0, 0, 0, 0.1))
+  }
+}
+```
+

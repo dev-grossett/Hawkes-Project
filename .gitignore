@@ -52,4 +52,6 @@ rsconnect/
 *.html
 *.pdf
 Hawkes_notes_and_exploration_files/
+MHP_Gibbs_Sampler_files/
+Gamma_Processes_files/
 inst/doc

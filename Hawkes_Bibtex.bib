@@ -1,12 +1,7 @@
-@article{Bacry2012_NonparametricKernel,
-  author  = {Bacry, Emmanuel and Dayri, Khalil and Muzy, Jean-François},
-  title   = {Non-parametric kernel estimation for symmetric {Hawkes} processes: Application to high frequency financial data},
-  journal = {European Physical Journal B},
-  volume  = {85},
-  number  = {5},
-  year    = {2012},
-  doi     = {10.1140/epjb/e2012-21005-8}
-}
+
+###############################################################################
+Reference Texts
+###############################################################################
 
 @book{DaleyVereJones2003_PointProcessVol1,
   author    = {Daley, Daryl J. and Vere-Jones, David},
@@ -16,6 +11,54 @@
   address   = {New York},
   year      = {2003}
 }
+
+@book{Laub2021_ElementsHawkes,
+  author    = {Laub, Patrick J. and Taimre, Thomas and Pollett, Philip K.},
+  title     = {The Elements of {Hawkes} Processes},
+  publisher = {Springer},
+  address   = {Cham, Switzerland},
+  year      = {2021},
+  isbn      = {978-3-030-84639-8},
+  url       = {https://link.springer.com/book/10.1007/978-3-030-84639-8}
+}
+
+@book{Muller2015_BayesianNonparametrics,
+  author    = {Müller, Peter and Qunitana, Fernando Andres and Jara, Alejandro and Hanson, Tim},
+  title     = {An Introduction to the Theory of Point Processes, Vol. I},
+  edition   = {1},
+  publisher = {Springer},
+  address   = {Cham, Switzerland},
+  year      = {2015}
+}
+
+@book{Phadia2016_PriorProcesses,
+  author    = {Phadia, Eswar G.},
+  title     = {Prior Processes and Their Applications},
+  subtitle  = {Nonparametric Bayesian Estimation},
+  edition   = {2},
+  publisher = {Springer},
+  address   = {Cham, Switzerland},
+  year      = {2018}
+}
+
+@manual{Stan2025_UsersGuide,
+  title        = {{Stan User's Guide}, version 2.37},
+  author       = {{Stan Development Team}},
+  organization = {Stan Development Team},
+  year         = {2025}
+}
+
+@manual{RCore2025_RLanguage,
+  author       = {{R Core Team}},
+  title        = {R: A language and environment for statistical computing},
+  organization = {R Foundation for Statistical Computing},
+  address      = {Vienna, Austria},
+  year         = {2025}
+}
+
+###############################################################################
+Hawkes Process Papers
+###############################################################################
 
 @article{Hawkes1971_SelfExcitingSpectra,
   author  = {Hawkes, Alan G.},
@@ -27,6 +70,16 @@
   year    = {1971}
 }
 
+@article{Hawkes1974_ClusterRepresentation,
+  author  = {Hawkes, Alan G. and Oakes, David},
+  title   = {A cluster process representation of a self-exciting process},
+  journal = {Journal of Applied Probability},
+  volume  = {11},
+  number  = {3},
+  pages   = {493--503},
+  year    = {1974}
+}
+
 @article{Hawkes2018_FinanceReview,
   author  = {Hawkes, Alan G.},
   title   = {{Hawkes} processes and their applications to finance: A review},
@@ -36,6 +89,49 @@
   pages   = {193--198},
   year    = {2018},
   doi     = {10.1080/14697688.2017.1403131}
+}
+
+@article{Ogata1981_ModifiedThinning,
+  author  = {Ogata, Yosihiko},
+  title   = {On {Lewis'} simulation method for point processes},
+  journal = {IEEE Transactions on Information Theory},
+  volume  = {27},
+  number  = {1},
+  pages   = {23--31},
+  year    = {1981},
+  doi     = {10.1109/TIT.1981.1056305}
+}
+
+@article{Ogata1988_EarthquakeModel,
+  author  = {Ogata, Yosihiko},
+  title   = {Statistical models for earthquake occurrences and residual analysis for point processes},
+  journal = {Journal of the American Statistical Association},
+  volume  = {83},
+  number  = {401},
+  pages   = {9--27},
+  year    = {1988},
+  doi     = {10.1080/01621459.1988.10478560}
+}
+
+@article{Ozaki1979_MLE,
+  author  = {Ozaki, T.},
+  title   = {Maximum likelihood estimation of {Hawkes'} self-exciting point processes},
+  journal = {Annals of the Institute of Statistical Mathematics},
+  volume  = {31},
+  pages   = {145--155},
+  year    = {1979},
+  doi     = {10.1007/BF02480272}
+}
+
+@article{Lewis1979_ThinningSimulation,
+  author  = {Lewis, P. A. W. and Shedler, G. S.},
+  title   = {Simulation of nonhomogeneous {Poisson} processes by thinning},
+  journal = {Naval Research Logistics Quarterly},
+  volume  = {26},
+  number  = {3},
+  pages   = {403--413},
+  year    = {1979},
+  doi     = {10.1002/nav.3800260304}
 }
 
 @misc{Kim2025_BayesianNonparametricMarked,
@@ -54,6 +150,16 @@
   eprint        = {2405.10527},
   archivePrefix = {arXiv},
   primaryClass  = {stat.ME}
+}
+
+@article{Bacry2012_NonparametricKernel,
+  author  = {Bacry, Emmanuel and Dayri, Khalil and Muzy, Jean-François},
+  title   = {Non-parametric kernel estimation for symmetric {Hawkes} processes: Application to high frequency financial data},
+  journal = {European Physical Journal B},
+  volume  = {85},
+  number  = {5},
+  year    = {2012},
+  doi     = {10.1140/epjb/e2012-21005-8}
 }
 
 @article{Worrall2022_FiftyYearsLater,
@@ -86,57 +192,6 @@
   doi     = {10.1007/s11222-021-10021-x}
 }
 
-@article{Lewis2012_IraqApplication,
-  author  = {Lewis, Erik and Mohler, George and Brantingham, P. Jeffrey and Bertozzi, Andrea L.},
-  title   = {Self-exciting point process models of civilian deaths in Iraq},
-  journal = {Security Journal},
-  volume  = {25},
-  pages   = {244--264},
-  year    = {2012}
-}
-
-@article{Ogata1981_ModifiedThinning,
-  author  = {Ogata, Yosihiko},
-  title   = {On {Lewis'} simulation method for point processes},
-  journal = {IEEE Transactions on Information Theory},
-  volume  = {27},
-  number  = {1},
-  pages   = {23--31},
-  year    = {1981},
-  doi     = {10.1109/TIT.1981.1056305}
-}
-
-@article{Ogata1988_EarthquakeModel,
-  author  = {Ogata, Yosihiko},
-  title   = {Statistical models for earthquake occurrences and residual analysis for point processes},
-  journal = {Journal of the American Statistical Association},
-  volume  = {83},
-  number  = {401},
-  pages   = {9--27},
-  year    = {1988},
-  doi     = {10.1080/01621459.1988.10478560}
-}
-
-@article{Hawkes1974_ClusterRepresentation,
-  author  = {Hawkes, Alan G. and Oakes, David},
-  title   = {A cluster process representation of a self-exciting process},
-  journal = {Journal of Applied Probability},
-  volume  = {11},
-  number  = {3},
-  pages   = {493--503},
-  year    = {1974}
-}
-
-@article{Ozaki1979_MLE,
-  author  = {Ozaki, T.},
-  title   = {Maximum likelihood estimation of {Hawkes'} self-exciting point processes},
-  journal = {Annals of the Institute of Statistical Mathematics},
-  volume  = {31},
-  pages   = {145--155},
-  year    = {1979},
-  doi     = {10.1007/BF02480272}
-}
-
 @article{Marsan2008_CascadingEarthquakes,
   author  = {Marsan, David and Lengliné, Olivier},
   title   = {Extending earthquakes' reach through cascading},
@@ -155,45 +210,6 @@
   year    = {2011}
 }
 
-@manual{Stan2025_UsersGuide,
-  title        = {{Stan User's Guide}, version 2.37},
-  author       = {{Stan Development Team}},
-  organization = {Stan Development Team},
-  year         = {2025}
-}
-
-@article{Bacry2017_TickLibrary,
-  author  = {Bacry, Emmanuel and Bompaire, Martin and Gaïffas, Stéphane and Poulsen, Søren},
-  title   = {{tick}: A {Python} library for statistical learning, with emphasis on time-dependent modeling},
-  journal = {arXiv preprint arXiv:1707.03003},
-  year    = {2017}
-}
-
-@manual{Cheysson2024_Hawkesbow,
-  author  = {Cheysson, Felix},
-  title   = {{hawkesbow}: Estimation of {Hawkes} processes from binned observations},
-  year    = {2024}
-}
-
-@article{Lewis1979_ThinningSimulation,
-  author  = {Lewis, P. A. W. and Shedler, G. S.},
-  title   = {Simulation of nonhomogeneous {Poisson} processes by thinning},
-  journal = {Naval Research Logistics Quarterly},
-  volume  = {26},
-  number  = {3},
-  pages   = {403--413},
-  year    = {1979},
-  doi     = {10.1002/nav.3800260304}
-}
-
-@manual{RCore2025_RLanguage,
-  author       = {{R Core Team}},
-  title        = {R: A language and environment for statistical computing},
-  organization = {R Foundation for Statistical Computing},
-  address      = {Vienna, Austria},
-  year         = {2025}
-}
-
 @article{Rasmussen2013_BayesianInference,
   author  = {Rasmussen, Jakob Gulddahl},
   title   = {Bayesian inference for {Hawkes} processes},
@@ -205,44 +221,41 @@
   doi     = {10.1007/s11009-011-9272-5}
 }
 
-@article{Swishchuk2021_InsuranceHawkes,
-  author  = {Swishchuk, Anatoliy and Zagst, Rudi and Zeller, Gabriela},
-  title   = {{Hawkes} processes in insurance: Risk model and application},
-  journal = {Insurance: Mathematics and Economics},
-  volume  = {101},
-  pages   = {107--124},
-  year    = {2021},
-  doi     = {10.1016/j.insmatheco.2020.12.005}
+###############################################################################
+Nonparametric Bayesian Papers
+###############################################################################
+
+@InProceedings{Roychowdhury2015_GammaStickBreak,
+  title     = 	 {{Gamma Processes, Stick-Breaking, and Variational Inference}},
+  author    = 	 {Roychowdhury, Anirban and Kulis, Brian},
+  booktitle = 	 {Proceedings of the Eighteenth International Conference on Artificial Intelligence and Statistics},
+  pages     = 	 {800--808},
+  year      = 	 {2015},
+  editor    = 	 {Lebanon, Guy and Vishwanathan, S. V. N.},
+  volume    = 	 {38},
+  series    = 	 {Proceedings of Machine Learning Research},
+  address   = 	 {San Diego, California, USA},
+  month     = 	 {09--12 May},
+  publisher =    {PMLR},
+  pdf       = 	 {http://proceedings.mlr.press/v38/roychowdhury15.pdf},
+  url       = 	 {https://proceedings.mlr.press/v38/roychowdhury15.html}
 }
 
-@article{Lesage2022_GammaExcitation,
-  author  = {Lesage, Laurent and Deaconu, Mădălina and Lejay, Antoine and Meira, Jorge Augusto and Nichil, Geoffrey and State, Radu},
-  title   = {{Hawkes} processes with a gamma density excitation function: Application to natural disasters for insurance},
-  journal = {Methodology and Computing in Applied Probability},
-  volume  = {24},
-  number  = {4},
-  pages   = {2509--2537},
-  year    = {2022},
-  doi     = {10.1007/s11009-022-09938-1}
+@article{Sethurman1994_DirichletStickBreak,
+  author  = {Sethuraman, Jayaram},
+  year    = {1994},
+  month   = {01},
+  pages   = {639-650},
+  title   = {A Constructive Definition of the Dirichlet Prior},
+  volume  = {4},
+  journal = {Statistica Sinica}
 }
 
-@article{Reinhart2018_SpatioTemporalReview,
-  author  = {Reinhart, Alex},
-  title   = {A review of self-exciting spatio-temporal point processes and their applications},
-  journal = {Statistical Science},
-  volume  = {33},
-  number  = {3},
-  pages   = {299--318},
-  year    = {2018},
-  doi     = {10.1214/17-STS629}
-}
-
-@book{Laub2021_ElementsHawkes,
-  author    = {Laub, Patrick J. and Taimre, Thomas and Pollett, Philip K.},
-  title     = {The Elements of {Hawkes} Processes},
-  publisher = {Springer},
-  address   = {Cham, Switzerland},
-  year      = {2021},
-  isbn      = {978-3-030-84639-8},
-  url       = {https://link.springer.com/book/10.1007/978-3-030-84639-8}
+@InProceedings{inproceedings,
+  author = {Arnold, Richard and Chukova, Stefanka and Hayakawa, Yu},
+  year   = {2020},
+  month  = {08},
+  pages  = {1-6},
+  title  = {Nonparametric Bayesian Analysis of Hazard Rate Functions using the Gamma Process Prior},
+  doi    = {10.1109/APARM49247.2020.9209405}
 }

@@ -8,18 +8,6 @@ format:
     code-fold: true
     css: styles.css
     theme: cosmo
-    include-in-header:
-      text: |
-        <script>
-        window.MathJax = {
-          tex: {
-            macros: {
-              dd: "{\\mathrm{d}}"
-            }
-          }
-        };
-        </script>
-        <script id="MathJax-script" async src="https://cdn.jsdelivr.net"></script>
 execute:
   freeze: auto
 bibliography: Hawkes_Bibtex.bib
@@ -31,9 +19,12 @@ crossref:
 
 These are some notes taken while reading through @Laub2021_ElementsHawkes
 
-```{r load_proj_lib}
+```{r load_proj_lib, include=FALSE}
 # WIP library that currently has my simulation and plotting functions
 library(HawkesProject)
+library(ggplot2)
+library(sf)
+library(rnaturalearth)
 ```
 
 ```{r colours, include=FALSE}
@@ -133,7 +124,7 @@ A counting process $(N(t): t \geq 0)$ is a nonhomogeneous Poisson process with
 intensity function $\lambda(t) > 0$ if
 
 1.  For any interval $I=(a,b]$,
-$N(I) \sim \mathrm{Poisson}(\int_a^b \lambda(s) \dd s)$
+$N(I) \sim \mathrm{Poisson}(\int_a^b \lambda(s) d s)$
 2.  For any $n$ disjoint intervals $I_1, I_2, \ldots, I_n$, the random variables
 $N(I_1), N(I_2), \ldots, N(I_n)$ are independent.
 :::
@@ -141,7 +132,7 @@ $N(I_1), N(I_2), \ldots, N(I_n)$ are independent.
 Like we did for the homogeneous Poisson process, we can derive the infinitesimal
 properties of the nonhomogeneous Poisson process. First we note that by the 
 Fundamental Theorem of Calculus 
-$\int_t^{t+h} \lambda(s) \dd s = \lambda(t)h + o(h)$, and the Taylor expansion 
+$\int_t^{t+h} \lambda(s) d s = \lambda(t)h + o(h)$, and the Taylor expansion 
 $e^{-\lambda(t) h} = 1 - \lambda(t) h + o(h)$. Then, as $h \to 0$:
 
 1. $$ \begin{aligned} 
@@ -168,8 +159,8 @@ Given the history up until the last arrival $u$, $\mathcal{H}(u)$, define the
 conditional cumulative distribution (CDF) function of the next arrival time 
 $T_{k+1}$ as 
 $$
-F(t \mid \mathcal{H}(u)) = \int_u^t \mathbb{P}(T_{k+1} \in [s, s + \dd s] 
-\mid \mathcal{H}(u)) \, \dd s = \int_u^t f(s \mid \mathcal{H}(u)) \, \dd s
+F(t \mid \mathcal{H}(u)) = \int_u^t \mathbb{P}(T_{k+1} \in [s, s + d s] 
+\mid \mathcal{H}(u)) \, d s = \int_u^t f(s \mid \mathcal{H}(u)) \, d s
 $$
 
 The joint PDF for realisations $\{ t_1, t_2, \ldots, t_k \}$ is then, by the 
@@ -214,7 +205,7 @@ estimation and goodness of fit testing of point processes.
 
 For a counting process $N$ the non-decreasing function 
 $$
-\Lambda(t) = \int_0^t \lambda^*(s) \dd s
+\Lambda(t) = \int_0^t \lambda^*(s) d s
 $$ is called the compensator of the counting process.
 :::
 
@@ -240,7 +231,7 @@ $$ {#eq-hp_definition}
 
 Suppose the process' conditional intensity function is of the form 
 $$
-\lambda^*(t) = \lambda + \int_0^t \mu(t - u) \dd N(u)
+\lambda^*(t) = \lambda + \int_0^t \mu(t - u) d N(u)
 $${#eq-hp_lambda_integral} 
 for some $\lambda > 0$ and $\mu: (0,\infty) \to [0, \infty]$ which are called 
 the *background intensity* and *excitation function* respectively. Assume that 
@@ -552,7 +543,7 @@ $$
 $$
 
 The value of $\lambda$ that maximises this is easily found by setting 
-$\frac{\dd \ell}{\dd \lambda}=0$ and solving for $\lambda$, giving 
+$\frac{d \ell}{d \lambda}=0$ and solving for $\lambda$, giving 
 $$
 \hat{\lambda} = N_T/T
 $$
@@ -609,19 +600,19 @@ $$
 $$ 
 and therefore 
 $$
-\Lambda(T) = \int_0^{t_i} \lambda^*(s) \dd s + \sum_{i=1}^{N_T-1} 
-  \int_{t_i}^{t_i + 1} \lambda^*(s) \dd s + \int_{t_{N_T}}^{T} \lambda^*(s) \dd s
+\Lambda(T) = \int_0^{t_i} \lambda^*(s) d s + \sum_{i=1}^{N_T-1} 
+  \int_{t_i}^{t_i + 1} \lambda^*(s) d s + \int_{t_{N_T}}^{T} \lambda^*(s) d s
 $$
 
 Substituting the Hawkes conditional intensity in @eq-hp_lambda, and using 
-$M(t) \coloneqq \int_0^t \mu(s) \dd s$, the integral term can be written as 
+$M(t) \coloneqq \int_0^t \mu(s) d s$, the integral term can be written as 
 $$
 \begin{aligned}
-\int_{t_i}^{t_{i+1}} \lambda^*(s) \dd s &= \int_{t_i}^{t_{i+1}} 
-  \left[ \lambda + \sum_{t_j < s} \mu(s - t_j) \right] \dd s 
+\int_{t_i}^{t_{i+1}} \lambda^*(s) d s &= \int_{t_i}^{t_{i+1}} 
+  \left[ \lambda + \sum_{t_j < s} \mu(s - t_j) \right] d s 
   \\
 &= \lambda (t_{i+1} - t_i) + \sum_{j=1}^i \int_{t_i}^{t_{i+1}} \mu(s - t_j) 
-  \dd s 
+  d s 
   \\
 &= \lambda (t_{i+1} - t_i) + \sum_{j=1}^i \left[ M(t_{i+1} - t_j) - 
   M(t_i - t_j) \right]
@@ -821,20 +812,20 @@ $f^*(m \mid t)$ is the density of the mark $m$ at time $t$ (also conditioned on
 $\mathcal{H}_t$). The likelihood function is then
 $$
 \begin{aligned}
-\mathcal{L}(\theta \mid (t_1,m_1),\ldots,&(t_n,m_n),T) = 
+\mathcal{L}(\boldsymbol{\theta} \mid \mathcal{H}_T,T) &= 
   \left[\prod_{i=1}^n \lambda^*(t_i, m_i)\right] \times \exp \left(-\int_0^T 
-  \int_{\mathcal{M}} \lambda^*(s,m) \dd m \, \dd s \right) \\
+  \int_{\mathcal{M}} \lambda^*(s,m) d m \, d s \right) \\
 &= \left[ \prod_{i=1}^n \lambda_g^*(t_i) f^*(m_i \mid t_i) \right] \times 
   \exp \left( -\int_0^T \int_{\mathcal{M}} \lambda_g^*(s) f^*(m \mid s) 
-  \dd m \, \dd s \right) \\
+  d m \, d s \right) \\
 &= \left[ \prod_{i=1}^n \lambda_g^*(t_i) f^*(m_i \mid t_i) \right] \times 
-  \exp \left( -\int_0^T \lambda_g^*(s) \dd m \, \dd s \right)
+  \exp \left( -\int_0^T \lambda_g^*(s) d m \, d s \right)
 \end{aligned}
 $$ {#eq-hp_marked_lambda_likelihood} 
 and the log-likelihood is
 $$
-\ell(\theta \mid (t_1,m_1),\ldots,(t_n,m_n),T) = \sum_{i=1}^n \log \lambda_g^*(t_i)
-  + \sum_{i=1}^n f^*(m_i \mid t_i) - \int_0^T \lambda_g^*(s) \dd s
+\ell(\boldsymbol{\theta} \mid \mathcal{H}_T,T) = \sum_{i=1}^n \log \lambda_g^*(t_i)
+  + \sum_{i=1}^n \log f^*(m_i \mid t_i) - \int_0^T \lambda_g^*(s) d s
 $$ {#eq-hp_marked_lambda_loglikelihood} 
 
 The marks are called unpredictable if the marks are independent of the history 
@@ -844,25 +835,452 @@ intensity process.
 For unpredictable marks:
 $$
 \begin{aligned}
-\ell(\theta \mid (t_1,m_1),\ldots,(t_n,m_n),T) &= \sum_{i=1}^n \log \lambda_g^*(t_i)
-  - \int_0^T \lambda_g^*(s) \dd s + \sum_{i=1}^n f(m_i \mid t_i)  \\
-&= \ell_{\lambda} + \ell_f
+\ell(\boldsymbol{\theta} \mid \mathcal{H}_T,T) &= \sum_{i=1}^n \log \lambda_g^*(t_i)
+  - \int_0^T \lambda_g^*(s) d s + \sum_{i=1}^n \log f(m_i \mid t_i)  \\
+&= \ell_{\lambda}(\boldsymbol{\theta}_{\lambda} \mid \mathcal{H}_T,T) 
+  + \ell_f(\boldsymbol{\theta}_f \mid \mathcal{H}_T,T)
 \end{aligned}
 $$ {#eq-hp_marked_lambda_loglikelihood2} 
-where $\ell_{\lambda}$ is the log-likelihood function for the ground intensity 
-process, and $\ell_f$ is the log-likelihood function for the mark density.
+where $\ell_{\lambda}(\cdot)$ is the log-likelihood function for the ground intensity 
+process, and $\ell_f(\cdot)$ is the log-likelihood function for the mark density.
 $$
 \begin{aligned}
-\ell_{\lambda}(\theta_{\lambda} \mid (t_1,m_1),\ldots,(t_n,m_n),T) &= 
-  \sum_{i=1}^n \lambda_g^*(t_i) - \int_0^T \lambda_g^*(s) \dd s \\
-\ell_f(\theta_f \mid (t_1,m_1),\ldots,(t_n,m_n),T) &= 
-  \sum_{i=1}^n f(m_i \mid t_i)
+\ell_{\lambda}(\boldsymbol{\theta}_{\lambda} \mid  \mathcal{H}_T,T) &= 
+  \sum_{i=1}^n \log \lambda_g^*(t_i) - \int_0^T \lambda_g^*(s) d s \\
+\ell_f(\boldsymbol{\theta}_f \mid  \mathcal{H}_T,T) &= 
+  \sum_{i=1}^n \log f(m_i \mid t_i)
 \end{aligned}
 $$
-$\theta_{\lambda}$ is the parameter vector for the ground intensity process and
-$\theta_f$ is the parameter vector for the mark density. The benefit of the 
+$\boldsymbol{\theta}_{\lambda}$ is the parameter vector for the ground intensity process and
+$\boldsymbol{\theta}_f$ is the parameter vector for the mark density. The benefit of the 
 unpredictable mark assumption is that it allows this separable form of the 
 log-likelihood function which means each component can be maximised separately.
 
+### Example: NZ Quake Catalogue
 
+The dataset was downloaded from [GeoNet Quake Search](https://quakesearch.geonet.org.nz/)
+with the following parameters
+
+- Earthquakes between 2000-01-01 00:00 UTC and 2025-01-01 00:00 UTC
+- Magnitude threshold $m_0 = 4.0$
+- Shallow events down to 40km
+- Central New Zealand (the rectangular area 171°--179°E and 38°--43°S)
+
+```{r}
+nz_quakes <- read.csv("data/nz_quakes_2000-2025_m4plus_shallow_central.csv")
+start_time <- as.POSIXct("2000-01-01 00:00:00", tz = "UTC")
+end_time <- as.POSIXct("2025-01-01 00:00:00", tz = "UTC")
+T_max <- as.numeric(difftime(end_time, start_time, units = "days"))
+mag_thresh <- 4
+
+nz_quakes$origintime <- as.POSIXct(
+  nz_quakes$origintime, 
+  format = "%Y-%m-%dT%H:%M:%OSZ", 
+  tz = "UTC"
+)
+
+nz_quakes$days_from_origin <- as.numeric(difftime(
+  nz_quakes$origintime, 
+  start_time, 
+  units = "days"
+))
+
+nz_quakes <- sort_by(nz_quakes, ~days_from_origin)
+
+plot_base_canvas(
+  xlim  = c(0, T_max), 
+  ylim  = c(0, nrow(nz_quakes) + 1), 
+  title = "Central NZ Quake Catalogue: N(t)",
+  ylab  = expression(N(t))
+)
+add_counting_process(nz_quakes$days_from_origin, T_max)
+add_events(nz_quakes$days_from_origin)
+
+```
+```{r}
+nz_map <- ne_countries(
+  scale = "medium", 
+  country = "New Zealand", 
+  returnclass = "sf")
+
+ggplot() +
+  geom_sf(data = nz_map, color = "white") + 
+  geom_point(
+    data = nz_quakes, 
+    aes(x = longitude, y = latitude, size = magnitude, color = magnitude), 
+    alpha = 0.5) +
+  scale_color_viridis_c() + 
+  coord_sf(xlim = c(171, 179), ylim = c(-38, -43)) + 
+  theme_minimal() +
+  labs(
+    title = "Shallow NZ Earthquakes (>M4, <40km deep)", 
+    subtitle = "2000 - 2025", 
+    size = "Magnitude", 
+    color = "Magnitude"
+  )
+```
+
+The model I'll attempt to fit is the class of Temporal ETAS models. These are 
+marked Hawkes processes with ground intensity
+$$
+\lambda_g^*(t) = \lambda + \sum_{T_i<t} Ae^{\alpha(M_i-m_0)} \frac{p-1}{c} 
+  \left(1+\frac{t - T_i}{c} \right)^{-p}
+$$
+for $\lambda,A,\alpha,c,m_0>0,p>1$, and mark density (iid)
+$$
+f(m) = \beta e^{-\beta(M-m_0)}
+$$
+for $\beta, m_0>0$. 
+
+Therefore the log-likelihood is 
+$$
+\ell(\boldsymbol{\theta} \mid \mathcal{H}_T,T) = 
+  \ell_{\lambda}(\boldsymbol{\theta}_{\lambda} \mid \mathcal{H}_T,T) +
+  \ell_f(\boldsymbol{\theta}_f \mid \mathcal{H}_T,T),
+$$
+where
+$$
+\begin{gather}
+\ell_{\lambda}(\boldsymbol{\theta}_{\lambda} \mid \mathcal{H}_T,T) = 
+  \sum_{i=1}^n \log \lambda_g^*(t_i) - \int_0^T \lambda_g^*(s) ds, \\
+\ell_f(\boldsymbol{\theta}_f \mid \mathcal{H}_T,T) = 
+  \sum_{i=1}^n \log f(m)
+\end{gather}
+$$
+which can be maximised independently.
+
+For $\ell_f(\cdot)$, $m \sim \mathrm{Exp}(\beta)$ which has the MLE 
+$\hat{\beta} = 1/_\bar{m}$ with $\mathrm{SE}(\hat{\beta})=\hat{\beta}/\sqrt{n}$.
+
+For the $\ell_{\lambda}(\cdot)$ term, we will want a closed form expression for
+$\Lambda_g(t)=\int_0^T \lambda_g^*(s) ds$:
+
+$$
+\begin{aligned}
+\Lambda_g(t) &= \int_0^t \lambda_g^*(s) ds \\
+&= \int_0^t \left( \lambda + \sum_{T_i<t} A e^{\alpha(M_i-m_0)} \frac{p-1}{c} 
+  \left(1 + \frac{s - T_i}{c} \right)^{-p} \right) ds \\
+&= \int_0^t \lambda ds + \sum_{T_i<t} \int_{T_i}^t A e^{\alpha(M_i-m_0)} 
+  \frac{p-1}{c} \left(1 + \frac{s - T_i}{c} \right)^{-p} ds \\
+&= \lambda t + A \frac{p-1}{c} \sum_{T_i<t} e^{\alpha(M_i-m_0)} 
+  \int_1^{1 + \frac{t - T_i}{c}}  u^{-p} c \,du \\
+&= \lambda t + A(p-1) \sum_{T_i<t} e^{\alpha(M_i-m_0)} \left[ \frac{u^{1-p}}{1-p}
+  \right]_1^{1 + \frac{t - T_i}{c}} \\
+&= \lambda t + A\sum_{T_i<t}e^{\alpha(M_i-m_0)}\left(1 - \left(1 + 
+  \frac{t-T_i}{c} \right)^{1-p} \right)
+\end{aligned}
+$$
+
+This allows us to optimise $\ell_{\lambda}(\cdot)$ numercially using `optim`:
+
+```{r}
+H_t <- data.frame(
+  time = nz_quakes$days_from_origin, 
+  mark = nz_quakes$magnitude - mag_thresh # simpler to work with shifted magnitudes
+)
+
+# simple exponential mark density (of shifted magnitude)
+# therefore mle = 1/mean(marks)
+beta <- 1/mean(H_t$mark)
+beta_se <- beta/sqrt(length(H_t$mark))
+
+# ground process terms (full history dependence)
+etas_power_intensity <- function(theta, t, H_t) {
+  lambda <- theta[1]
+  A <- theta[2]
+  alpha <- theta[3]
+  c <- theta[4]
+  p <- theta[5]
+  
+  lambda + (A*(p - 1)/c)*sum(exp(alpha*H_t$mark) * (1 + (t - H_t$time)/c)^(-p))
+}
+
+etas_exp_intensity <- function(theta, t, H_t) {
+  lambda <- theta[1]
+  A <- theta[2]
+  alpha <- theta[3]
+  gamma <- theta[4]
+  
+  lambda + A*sum(exp(alpha*H_t$mark) * exp(-gamma*(t - H_t$time)))
+}
+
+etas_power_compensator <- function(theta, t, H_t) {
+  lambda <- theta[1]
+  A <- theta[2]
+  alpha <- theta[3]
+  c <- theta[4]
+  p <- theta[5]
+  
+  lambda*t + A*sum(exp(alpha*H_t$mark)*(1 - (1 + (t - H_t$time)/c)^(1-p)))
+}
+
+etas_exp_compensator <- function(theta, t, H_t) {
+  lambda <- theta[1]
+  A <- theta[2]
+  alpha <- theta[3]
+  gamma <- theta[4]
+  
+  lambda*t + (A/gamma)*sum(exp(alpha*H_t$mark)*(1 - exp(-gamma*(t - H_t$time))))
+}
+
+etas_power_loglik <- function(theta, T_max, H_t) {
+  # this is an expensive O([N(T_max)]^2) computation
+  log_intensities <- sapply(1:nrow(H_t), function(i) {
+    t_i <- H_t$time[i]
+    past_events <- H_t[H_t$time < t_i, ]
+    log(etas_power_intensity(theta = theta, t = t_i, H_t = past_events))
+  })
+  
+  # total log-likelihood = sum(log(intensities)) - compensator at T
+  sum(log_intensities) - etas_power_compensator(theta = theta, t = T_max, H_t = H_t)
+}
+
+etas_power_negloglik <- function(theta, T_max, H_t) {
+  -etas_power_loglik(theta, T_max, H_t)
+}
+
+etas_exp_loglik <- function(theta, T_max, H_t) {
+  # this is an expensive O([N(T_max)]^2) computation
+  log_intensities <- sapply(1:nrow(H_t), function(i) {
+    t_i <- H_t$time[i]
+    past_events <- H_t[H_t$time < t_i, ]
+    log(etas_exp_intensity(theta = theta, t = t_i, H_t = past_events))
+  })
+  
+  # total log-likelihood = sum(log(intensities)) - compensator at T
+  sum(log_intensities) - etas_exp_compensator(theta = theta, t = T_max, H_t = H_t)
+}
+
+etas_exp_negloglik <- function(theta, T_max, H_t) {
+  -etas_exp_loglik(theta, T_max, H_t)
+}
+
+fit_power <- optim(
+  par = c(0.2, 0.2, 1.2, 0.2, 1.2),
+  fn = etas_power_negloglik,
+  H_t = H_t,
+  T_max = T_max,
+  method = "L-BFGS-B",
+  lower = c(1e-6, 1e-6, 1e-6, 1e-6, 1+1e-6),
+  control=list(trace=2),
+  hessian = TRUE
+)
+
+mle_power <- fit_power$par
+v_cov_power <- solve(fit_power$hessian)
+se_power <- sqrt(diag(v_cov_power))
+
+cat("\nMaximum Likelihood Estimates with 95% CIs:\n", sprintf(
+  "beta_mle = %.3f ± %.3f \n lambda_mle = %.3f ± %.3f \n A_mle = %.3f ± %.3f \n alpha_mle = %.3f ± %.3f \n c_mle = %.3f ± %.3f \n p_mle = %.3f ± %.3f \n\n",
+  beta, 1.96*beta_se,
+  mle_power[1], 1.96*se_power[1],
+  mle_power[2], 1.96*se_power[2],
+  mle_power[3], 1.96*se_power[3],
+  mle_power[4], 1.96*se_power[4],
+  mle_power[5], 1.96*se_power[5]
+))
+
+fit_exp <- optim(
+  par = c(1, 1, 1, 1), 
+  fn = etas_exp_negloglik, 
+  H_t = H_t,
+  T_max = T_max,
+  method = "L-BFGS-B",
+  lower = c(1e-6, 1e-6, 1e-6, 1e-6),
+  control=list(trace=2),
+  hessian = TRUE
+)
+
+mle_exp <- fit_exp$par
+v_cov_exp <- solve(fit_exp$hessian)
+se_exp <- sqrt(diag(v_cov_exp))
+
+cat("\nMaximum Likelihood Estimates with 95% CIs:\n", sprintf(
+  "beta_mle = %.3f ± %.3f \n lambda_mle = %.3f ± %.3f \n A_mle = %.3f ± %.3f \n alpha_mle = %.3f ± %.3f \n gamma_mle = %.3f ± %.3f \n\n", 
+  beta, 1.96*beta_se,
+  mle_exp[1], 1.96*se_exp[1], 
+  mle_exp[2], 1.96*se_exp[2], 
+  mle_exp[3], 1.96*se_exp[3], 
+  mle_exp[4], 1.96*se_exp[4]
+))
+```
+
+A useful technique exists to assess the goodness-of-fit of some point data to 
+a generic model for the point data. This technique uses the compensator, 
+$\Lambda(t)$, of the model, and the random time change theorem of 
+@DaleyVereJones2003_PointProcessVol1 Proposition 7.4.IV:
+
+::: {#thm-random_time_change .theorem}
+## Random Time Change and Residual Analysis
+Consider an unbounded, increasing sequence of time points $\{t_1,t_2,\ldots\}$ 
+in the half line $(0,\infty)$, and a monotone, continuous compensator 
+$\Lambda(\cdot)$ such that $\lim_{t\to\infty} \Lambda(t)=\infty$ almost surely.
+The transformed sequence $\{t_1^*,t_2^*,\ldots\}=\{\Lambda(t_1),\Lambda(t_2),\ldots\}$,
+where the counting process is denoted $N^*(t)$ is a realisation of a unit rate 
+Poisson process if and only if the original sequence $\{t_1,t_2,\ldots\}$ is a 
+realisation from the point process defined by $\Lambda(\cdot)$.
+
+:::
+
+Hence, equipped with a closed form of the compensator, the quality of the
+inference can be ascertained using standard fitness tests for Poisson processes.
+
+This method is applied to both the power decay, and exponential decay models fit
+to the central NZ earthquake catalogue. We compare the quantiles of the 
+transformed process to the theoretical values of a $\mathrm{Exp(1)}$ random 
+variable, and perform a Kolmogorov-Smirnov test.
+
+Below we can see that the power decay more closely follows the theoretical 
+quantiles, and the KS test agrees with us not rejecting the null hypothesis at 
+a 5% level that the transformed process follows a $\mathrm{Exp(1)}$ distribution.
+Therefore we conclude the original point process follows a Hawkes process
+defined by the compensator used to transform the data.
+
+On the other hand, we can detect deviations from the theoretical quantiles
+for the exponential decay model, and a KS test that rejects the null hypothesis
+at a 5% level that the transformed process follows a $\mathrm{Exp(1)}$ 
+distribution. Therefore we conclude the original point process does not follow a
+Hawkes process defined by the compensator used to transform the data.
+
+```{r}
+# For each event i, calculate the compensator value at time t_i
+theta <- fit_power$par
+tau_power <- sapply(1:nrow(H_t), function(i) {
+  ti <- H_t[i, "time"]
+  hi <- H_t[1:(i - 1), ] # Only use history up to this point
+  etas_power_compensator(theta = theta, H_t = hi, t = ti)
+})
+
+# convert to inter-arrival times 
+gaps_power <- diff(c(0, tau_power))
+n <- length(gaps_power)
+
+max_val_power <- max(qexp(stats::ppoints(n)), gaps_power) * 1.05
+
+plot_base_canvas(
+  xlim  = c(0, max_val_power), 
+  ylim  = c(0, max_val_power), 
+  title = "Residual Q-Q Plot - Power Decay",
+  xlab  = "Theoretical Exp(1) Quantiles",
+  ylab  = "Sample Residual Quantiles"
+)
+graphics::abline(0, 1, col = "#BF616A", lty = 2, lwd = 2)
+theoretical_q <- qexp(stats::ppoints(n))
+graphics::points(theoretical_q, sort(gaps_power), col = "#5E81AC", pch = 20, cex = 0.7)
+
+# subtitle for the Kolmogorov-Smirnov test
+ks_res <- ks.test(gaps_power, "pexp", rate = 1)
+ks_text <- sprintf("K-S Test p-value: %.4f", ks_res$p.value)
+graphics::mtext(ks_text, side = 3, line = 0.2, cex = 0.8, col = "#4C566A")
+
+```
+
+
+```{r}
+# For each event i, calculate the compensator value at time t_i
+theta <- fit_exp$par
+tau_exp <- sapply(1:nrow(H_t), function(i) {
+  ti <- H_t[i, "time"]
+  hi <- H_t[1:(i - 1), ] # Only use history up to this point
+  etas_exp_compensator(theta = theta, H_t = hi, t = ti)
+})
+
+# convert to inter-arrival times 
+gaps_exp <- diff(c(0, tau_exp))
+n <- length(gaps_exp)
+
+max_val_exp <- max(qexp(stats::ppoints(n)), gaps_exp) * 1.05
+
+plot_base_canvas(
+  xlim  = c(0, max_val_exp), 
+  ylim  = c(0, max_val_exp), 
+  title = "Residual Q-Q Plot - Exponential Decay",
+  xlab  = "Theoretical Exp(1) Quantiles",
+  ylab  = "Sample Residual Quantiles"
+)
+graphics::abline(0, 1, col = "#BF616A", lty = 2, lwd = 2)
+theoretical_q <- qexp(stats::ppoints(n))
+graphics::points(theoretical_q, sort(gaps_exp), col = "#5E81AC", pch = 20, cex = 0.7)
+
+# subtitle for the Kolmogorov-Smirnov test
+ks_res <- ks.test(gaps_exp, "pexp", rate = 1)
+ks_text <- sprintf("K-S Test p-value: %.4f", ks_res$p.value)
+graphics::mtext(ks_text, side = 3, line = 0.2, cex = 0.8, col = "#4C566A")
+
+```
+
+
+```{r, include=FALSE}
+# sim_mhp <- function(T_max, intensity_func, rmark_func, ...) {
+#   
+#   H_t = data.frame(time = 0, mark = 0)
+#   t <- 0
+#   count <- 0
+#   
+#   while (t < T_max) {
+#     
+#     # find new upper bound, using only the filled portion of H_t
+#     M <- intensity_func(t = t, H_t = H_t[seq_len(count), ], ...)
+#     # M <- lambda + sum(mu(t - arrival_times[seq_len(count)]))
+#     if (is.na(M)) {
+#       stop("Intensity calculation returned NA. Check your function.")
+#     }
+#     
+#     # generate next candidate point
+#     t <- t + rexp(1, M)
+#     if (t > T_max) break
+#     
+#     current_intensity <- intensity_func(t = t, H_t = H_t[seq_len(count), ], ...)
+#     # keep it with some probability
+#     if (runif(1) <= current_intensity/M) {
+#       count <- count + 1
+#       mark <- rmark_func()
+#       H_t[count, ] <- c(t, mark)
+#     }
+#   }
+#   
+#   return(H_t)
+# }
+# 
+# set.seed(3141)
+# rmark_func <- function() {rexp(1, beta)}
+# H_t_sim <- sim_mhp(10000, etas_power_intensity, rmark_func, theta=fit_power$par)
+# plot_base_canvas(
+#   xlim  = c(0, 10000), 
+#   ylim  = c(0, nrow(H_t_sim)), 
+#   title = "Simulated Marked Hawkes Process: N(t)",
+#   ylab  = expression(N(t))
+# )
+# add_counting_process(H_t_sim$time, 10000)
+# add_events(H_t_sim$time)
+# 
+# fit_power_sim <- optim(
+#   par = c(0.2, 0.2, 1.2, 0.2, 1.2), 
+#   fn = etas_power_negloglik, 
+#   H_t = H_t_sim,
+#   T_max = 10000,
+#   method = "L-BFGS-B",
+#   lower = c(1e-6, 1e-6, 1e-6, 1e-6, 1+1e-6),
+#   control=list(trace=2),
+#   hessian = TRUE
+# )
+# 
+# beta_sim <- 1/mean(H_t_sim$mark)
+# beta_se_sim <- beta_sim/sqrt(nrow(H_t_sim))
+# mle_power_sim <- fit_power_sim$par
+# v_cov_power_sim <- solve(fit_power_sim$hessian)
+# se_power_sim <- sqrt(diag(v_cov_power_sim))
+# 
+# cat("\nMaximum Likelihood Estimates with 95% CIs:\n", sprintf(
+#   "beta_mle = %.3f ± %.3f \n lambda_mle = %.3f ± %.3f \n A_mle = %.3f ± %.3f \n alpha_mle = %.3f ± %.3f \n c_mle = %.3f ± %.3f \n p_mle = %.3f ± %.3f \n\n", 
+#   beta_sim, 1.96*beta_se_sim,
+#   mle_power_sim[1], 1.96*se_power_sim[1], 
+#   mle_power_sim[2], 1.96*se_power_sim[2], 
+#   mle_power_sim[3], 1.96*se_power_sim[3], 
+#   mle_power_sim[4], 1.96*se_power_sim[4], 
+#   mle_power_sim[5], 1.96*se_power_sim[5]
+# ))
+# 
+# cat("Actual params = ", c(beta, fit_power$par))
+```
 ## References {.unnumbered}

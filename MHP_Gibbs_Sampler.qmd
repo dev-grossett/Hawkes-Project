@@ -1,0 +1,454 @@
+---
+title: "Marked Hawkes Process Gibbs Sampler"
+author: "Devon Grossett"
+format: 
+  html:
+    css: styles.css
+    theme: cosmo
+    code-fold: false
+---
+
+```{r, warning=FALSE}
+library(HawkesProject)
+```
+
+
+The conditional intensity of a Marked Hawkes Process (MHP) can be expressed as
+$$
+\lambda^*(t,m) = \lambda_g^*(t) f^*(m \mid t)
+$$
+where $f^*(m \mid t)$ is the mark density function, and $\lambda_g^*(t)$ the 
+ground process intensity function. The asterisk ($*$) indicates dependence of 
+the functions on the process history up to time $t$, 
+$\mathcal{H}(t) = \{(t_i, m_i): t_i < t \}$
+
+The ground intensity process can be represented as
+$$
+\lambda_g^*(t) = \lambda + \sum_{t_i < t}h(t-t_i,m_i)
+$$
+
+I'll look at processes where the mark history enters through an exponential 
+(typical in Hawkes models for earthquakes), and decay exponentially in time, 
+e.g.
+$$
+\begin{gather}
+h(t-t_i, m_i) = \eta(m_i)g(t-t_i) \\
+\eta(m) = Ae^{\alpha(m)} \\
+g(t) = \beta e^{-\beta t}
+\end{gather}
+$$
+and an iid exponential mark density, e.g.
+$$
+f^*(m \mid t) = f(m) = \gamma e^{-\gamma t}
+$$
+
+A useful thing to know for estimation is the integrated (ground) intensity 
+function $\Lambda_g(t)=\int_0^t \lambda_g^*(t) dt$. For this model, this is:
+$$
+\begin{aligned}
+\Lambda_g(t)
+&= \int_0^t \left( \lambda + \sum_i A e^{\alpha m_i} 
+  \beta e^{-\beta(s-t_i)} \mathbf{1}_{\{t_i < s\}} \right) ds \\
+&= \lambda t + \sum_{i} \int_0^t A e^{\alpha m_i} 
+  \beta e^{-\beta(s-t_i)} \mathbf{1}_{\{t_i < s\}} \, ds \\
+&= \lambda t + \sum_{t_i<t} \int_{t_i}^t A e^{\alpha m_i} 
+  \beta e^{-\beta(s-t_i)} ds \\
+&= \lambda t + \sum_{t_i<t} \int_0^{t - t_i} 
+  A e^{\alpha m_i} \beta e^{-\beta u} \, du \\
+&= \lambda t + \sum_{t_i<t} 
+  A e^{\alpha m_i} \left(1 - e^{-\beta(t - t_i)}\right)
+\end{aligned}
+$$
+
+Some code to simulate from a (MHP) $\{(t_1,m_1),\ldots,(t_n,m_n) \}$ observed 
+over $[0, T_{\max}]$. 
+
+```{r}
+sim_mhp <- function(T_max, intensity_func, rmark_func, ...) {
+  
+  # initialise data frame. 1st row will be overwritten so values don't matter
+  H_t = data.frame(time = 0, mark = 0)
+  t <- 0
+  count <- 0
+  
+  while (t < T_max) {
+    # find new upper bound, using only the filled portion of H_t
+    # only valid for intensities that are non-increasing between events
+    M <- intensity_func(t = t, H_t = H_t[seq_len(count), ], ...)
+    if (is.na(M)) {
+      stop("Intensity calculation returned NA. Check function.")
+    }
+    
+    # generate next candidate point
+    t <- t + rexp(1, M)
+    if (t > T_max) break
+    
+    process_intensity <- intensity_func(t = t, H_t = H_t[seq_len(count), ], ...)
+    # keep it with probability process_intensity/M
+    if (runif(1) <= process_intensity/M) {
+      count <- count + 1
+      mark <- rmark_func()
+      H_t[count, ] <- c(t, mark)
+    }
+  }
+  return(H_t)
+}
+
+# exponentially decaying kernel
+exp_intensity <- function(theta, t, H_t) {
+  lambda <- theta[1]
+  A <- theta[2]
+  alpha <- theta[3]
+  beta <- theta[4]
+  
+  lambda + A*beta*sum(exp(alpha*H_t$mark - beta*(t - H_t$time)))
+}
+
+exp_compensator <- function(theta, t, H_t) {
+  lambda <- theta[1]
+  A <- theta[2]
+  alpha <- theta[3]
+  beta <- theta[4]
+  
+  lambda*t + A*sum(exp(alpha*H_t$mark)*(1 - exp(-beta*(t - H_t$time))))
+}
+
+```
+
+Simulating a MHP with 
+$(\lambda,A,\alpha,\beta,\gamma) = (0.1,\, 0.2,\, 2,\, 2.5,\, 2,2)$:
+
+```{r}
+T_max <- 2000
+theta <- c(0.1, 0.08, 2, 2.5, 2.2)
+branching_ratio <- (theta[2]/theta[4]) * (theta[5]/(theta[5] - theta[3]))
+
+# e.g. earthquake magnitude
+rmark_func <- function(gamma = theta[5]) {rexp(1, gamma)}
+
+set.seed(1)
+simulated_process <- sim_mhp(T_max, exp_intensity, rmark_func, theta = theta)
+
+# My HawkesProject plotting utilities 
+plot_base_canvas(
+  xlim  = c(0, T_max), 
+  ylim  = c(0, nrow(simulated_process) + 1), 
+  title = expression(paste("Simulated MHP: ", N[g](t))),
+  ylab  = expression(N[g](t))
+)
+add_counting_process(simulated_process$time, T_max)
+add_events(simulated_process$time)
+```
+
+The log-likelihood for this process observed over $[0,T]$ is
+
+$$
+\begin{aligned}
+\ell(\boldsymbol{\theta} \mid \mathcal{H}_T,T) &= \sum_{i=1}^{N_g(T)} \log 
+  \lambda_g^*(t_i) - \int_0^T \lambda_g^*(s) ds + \sum_{i=1}^{N_g(T)} \log f(m) \\
+&= \sum_{i=1}^{N_g(T)} \log \left(\lambda + \sum_{j=1}^{i-1} A e^{\alpha m_j} 
+  \beta e^{-\beta(t_i-t_j)}\right) - \lambda t - \sum_{i=1}^{N_g(T)} A  
+  e^{\alpha m_i} \left(1 - e^{-\beta(t - t_i)}\right) \\
+&\quad + \sum_{i=1}^{N_g(T)} \gamma e^{-\gamma m_i}
+\end{aligned}
+$$
+
+$\gamma$ only appears in the last term, so will be able to estimated 
+independently of the other variables. For MLE, we can use the estimator 
+$\hat{\gamma}=1/\bar{\gamma}$ and 
+$\mathrm{SE}(\hat{\gamma}) = \hat{\gamma}/\sqrt{n}$.
+
+```{r}
+loglik <- function(theta, T_max, H_t) {
+  # this is an expensive O([N(T_max)]^2) computation
+  log_intensities <- sapply(1:nrow(H_t), function(i) {
+    t_i <- H_t$time[i]
+    past_events <- H_t[H_t$time < t_i, ]
+    log(exp_intensity(theta = theta, t = t_i, H_t = past_events))
+  })
+  
+  # total log-likelihood = sum(log(intensities)) - compensator(T)
+  sum(log_intensities) - exp_compensator(theta = theta, t = T_max, H_t = H_t)
+}
+
+neg_loglik <- function(theta, T_max, H_t) {-loglik(theta, T_max, H_t)}
+
+fit_exp <- optim(
+  par = c(1, 1, 1, 1), 
+  fn = neg_loglik, 
+  H_t = simulated_process,
+  T_max = T_max,
+  method = "L-BFGS-B",
+  lower = c(1e-6, 1e-6, 1e-6, 1e-6),
+  control=list(trace=2),
+  hessian = TRUE
+)
+
+mle_exp <- fit_exp$par
+v_cov_exp <- solve(fit_exp$hessian)
+se_exp <- sqrt(diag(v_cov_exp))
+
+cat("\nMaximum Likelihood Estimates with 95% CIs:\n", sprintf(
+  "lambda_mle = %.3f ± %.3f \n A_mle = %.3f ± %.3f \n alpha_mle = %.3f ± %.3f \n beta_mle = %.3f ± %.3f \n gamma_mle = %.3f ± %.3f \n\n", 
+  mle_exp[1], 1.96*se_exp[1], 
+  mle_exp[2], 1.96*se_exp[2], 
+  mle_exp[3], 1.96*se_exp[3], 
+  mle_exp[4], 1.96*se_exp[4],
+  1/mean(simulated_process$mark), 1.96*1/(mean(simulated_process$mark)*sqrt(nrow(simulated_process)))
+))
+
+cat("True Values = ", theta, "\n")
+```
+
+Below is some code for implementing a Gibbs Sampler to sample from the posterior
+distributions of the models parameters.
+
+It will be useful to define functions for these frequently computed terms:
+$$
+\begin{gather}
+S_i \coloneqq \sum_{t_j<t_i}e^{\alpha m_j}\beta e^{-\beta(t_i-t_j)} \\
+H \coloneqq \sum_{j=1}^n e^{\alpha m_j} e^{-\beta(t-t_j)}
+\end{gather}
+$$
+
+```{r}
+compute_S_H <- function(times, marks, alpha, beta, T_max) {
+  
+  n <- length(times)
+  S <- numeric(n)
+  
+  for (i in 2:n) {
+    dt <- times[i] - times[1:(i-1)]
+    S[i] <- beta*sum(exp(alpha*marks[1:(i-1)] - beta*dt))
+  }
+  
+  # compensator part (excluding lambda T)
+  H <- sum(exp(alpha*marks) * (1 - exp(-beta*(T_max - times))))
+  
+  return(list(S = S, H = H))
+}
+```
+
+Functions for full conditional log-posteriors, where we have used the 
+log-transformation to ensure positive values. The full conditional 
+log-posteriors will need the jacobian of the transformation. E.g. for sampling 
+$\lambda$ on the log-scale:
+
+$$
+\tilde{\lambda} = \log \lambda \quad \Rightarrow \quad \lambda=e^{\tilde{\lambda}}
+$$
+The transformation of the posterior is 
+$$
+\log p(\tilde{\lambda}\mid\cdot)=\log p(\lambda = e^{\tilde{\lambda}}\mid\cdot) 
+  + \log \left|\frac{d\lambda}{d\tilde{\lambda}} \right| 
+  = \log p(\lambda = e^{\tilde{\lambda}} \mid \cdot) + \log\lambda
+$$
+
+
+```{r}
+# '+ log_lambda' etc on end of each function return is jacobian of transformation
+
+logpost_lambda <- function(log_lambda, A, S, T_max, r_lambda) {
+  lambda <- exp(log_lambda)
+  sum(log(lambda + A*S)) - lambda*(T_max + r_lambda) + log_lambda  
+}
+
+logpost_A <- function(log_A, lambda, S, H, r_A) {
+  A <- exp(log_A)
+  sum(log(lambda + A*S)) - A*(r_A + H) + log_A 
+}
+
+# not sampling log-transformed variable as could be positive or negative
+# therefore don't need jacobian
+logpost_alpha <- function(alpha, lambda, A, times, marks, beta, T_max, r_alpha) {
+  # need to recompute S, H with updated alpha
+  tmp <- compute_S_H(times, marks, alpha, beta, T_max)
+  S <- tmp$S
+  H <- tmp$H
+  sum(log(lambda + A*S)) - r_alpha*alpha - A*H
+}
+
+logpost_beta <- function(log_beta, lambda, A, times, marks, alpha, T_max, r_beta) {
+  beta <- exp(log_beta)
+  # need to recompute S, H with updated alpha, beta
+  tmp <- compute_S_H(times, marks, alpha, beta, T_max)
+  S <- tmp$S
+  H <- tmp$H
+  
+  sum(log(lambda + A*S)) - r_beta*beta - A*H + log_beta
+}
+
+# posterior for gamma with gamma prior has gamma posterior
+sample_gamma <- function(marks, a0, b0) {
+  n <- length(marks)
+  shape <- a0 + n
+  rate  <- b0 + sum(marks)
+  
+  rgamma(1, shape = shape, rate = rate)
+}
+
+mh_step <- function(current, logpost_fun, proposal_sd, ...) {
+  # random walk sampler (in log-space)
+  proposal <- rnorm(1, current, proposal_sd)
+  
+  #log(acceptance ratio)
+  log_acc <- logpost_fun(proposal, ...) -
+             logpost_fun(current, ...)
+  
+  if (log(runif(1)) < log_acc) {
+    return(list(value = proposal, accept = 1))
+  } else {
+    return(list(value = current, accept = 0))
+  }
+}
+```
+
+Code for Metropolis-within-Gibbs sampler
+ 
+```{r}
+run_sampler <- function(times, marks, T_max, n_iter, init, prior_params, proposal_sds) {
+  
+  samples <- matrix(NA, n_iter, 5)
+  acceptance <- matrix(NA, n_iter, 5)
+  colnames(samples) <- c("lambda", "A", "alpha", "beta", "gamma")
+  colnames(acceptance) <- c("lambda", "A", "alpha", "beta", "gamma")
+  
+  # initialise
+  lambda <- init$lambda
+  A      <- init$A
+  alpha  <- init$alpha
+  beta   <- init$beta
+  gamma  <- init$gamma
+  
+  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
+                       max = n_iter, # Maximum value of the progress bar
+                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
+                       width = 50,   # Progress bar width. Defaults to getOption("width")
+                       char = "=")   # Character used to create the bar
+  
+  for (iter in 1:n_iter) {
+    
+    # Precompute S and H for Lambda and A sampling
+    tmp <- compute_S_H(times, marks, alpha, beta, T_max)
+    S <- tmp$S
+    H <- tmp$H
+    
+    # Lambda (Metropolis-within-Gibbs)
+    res <- mh_step(log(lambda), logpost_lambda, proposal_sds$lambda,
+                   A = A, S = S, T_max = T_max, r_lambda = prior_params$r_lambda)
+    lambda <- exp(res$value)
+    acceptance[iter, "lambda"] <- res$accept
+    
+    # A (Metropolis-within-Gibbs)
+    res <- mh_step(log(A), logpost_A, proposal_sds$A, lambda = lambda, 
+                   S = S, H = H, r_A = prior_params$r_A)
+    A <- exp(res$value)
+    acceptance[iter, "A"] <- res$accept
+    
+    # Alpha (Metropolis-within-Gibbs)
+    res <- mh_step(alpha, logpost_alpha, proposal_sds$alpha,
+                   lambda = lambda, A = A,
+                   times = times, marks = marks,
+                   beta = beta, T_max = T_max,
+                   r_alpha = prior_params$r_alpha)
+    alpha <- res$value
+    acceptance[iter, "alpha"] <- res$accept
+    
+    # Beta (Metropolis-within-Gibbs)
+    res <- mh_step(log(beta), logpost_beta, proposal_sds$beta,
+                   lambda = lambda, A = A,
+                   times = times, marks = marks,
+                   alpha = alpha, T_max = T_max,
+                   r_beta = prior_params$r_beta)
+    beta <- exp(res$value)
+    acceptance[iter, "beta"] <- res$accept
+    
+    # Gamma (pure Gibbs)
+    gamma <- sample_gamma(marks, prior_params$a_gamma, prior_params$b_gamma)
+    acceptance[iter, "gamma"] <- 1
+    
+    samples[iter, ] <- c(lambda, A, alpha, beta, gamma)
+    setTxtProgressBar(pb, iter)
+  }
+  
+  close(pb)
+  acceptance_rates <- colMeans(acceptance)
+  
+  return(list(samples = samples, acceptance_rates = acceptance_rates))
+}
+```
+
+
+```{r}
+########################################################################
+# Uncomment to rerun MCMC chains if ./data/chains.rds doesn't exist 
+#########################################################################
+
+# library(parallel)
+# 
+# times <- simulated_process$time
+# marks <- simulated_process$mark
+# prior_params <- list(
+#   a_gamma = 1, b_gamma = 1,
+#   r_lambda = 0.1, r_A = 0.1, r_alpha = 0.1, r_beta = 0.1
+# )
+# proposal_sds <- list(lambda = 0.25, A = 0.2, alpha = 0.12, beta = 0.2)
+# n_chains <- 4
+# n_iter   <- 5000
+# 
+# # reproducible initial values generated randomly to check chain convergence
+# set.seed(6)
+# init_list <- lapply(1:n_chains, function(i) {
+#   list(
+#     lambda = runif(1, 0.01, 1),
+#     A      = runif(1, 0.01, 1),
+#     alpha  = rnorm(1, 0, 1),
+#     beta   = runif(1, 0.5, 5),
+#     gamma  = runif(1, 0.5, 5)
+#   )
+# })
+# 
+# # reproducible parallel MCMC
+# cl <- makeCluster(n_chains)
+# clusterSetRNGStream(cl, iseed = 123)
+# 
+# clusterExport(cl, c("times", "marks", "T_max", "n_iter", "init_list", "prior_params",
+#                     "proposal_sds", "run_sampler", "mh_step", "compute_S_H",
+#                     "logpost_lambda", "logpost_A", "logpost_alpha",
+#                     "logpost_beta", "sample_gamma"))
+# 
+# chains <- parLapply(cl, 1:n_chains, function(i) {
+#   run_sampler(
+#     times = times,
+#     marks = marks,
+#     T_max = T_max,
+#     n_iter = n_iter,
+#     init = init_list[[i]],
+#     prior_params = prior_params,
+#     proposal_sds = proposal_sds
+#   )
+# })
+# stopCluster(cl)
+# saveRDS(chains, "./data/chains.rds")
+```
+
+```{r}
+library(coda)
+library(MCMCvis)
+
+if (file.exists("./data/chains.rds")) {chains <- readRDS("./data/chains.rds")}
+mcmc_chains <- lapply(chains, function(chain_res) {
+  # chain_res$samples is n_iter x n_params matrix
+  mcmc(chain_res$samples)
+})
+
+# Combine into mcmc.list
+chains_coda <- mcmc.list(mcmc_chains)
+chains_coda_thin <- window(chains_coda, start = 1001, thin = 10)
+
+MCMCtrace(chains_coda_thin, , ind = TRUE, Rhat = TRUE, n.eff = TRUE, pdf = FALSE)
+
+# Posterior summary
+MCMCsummary(chains_coda_thin, round = 4)
+```
+
