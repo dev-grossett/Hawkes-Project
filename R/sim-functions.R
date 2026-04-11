@@ -1,19 +1,24 @@
 #' Internal Constructor for point_process_sim
 #' @keywords internal
 .new_point_process_sim <- function(events, T_max, params, type, 
-                                   full_history = NULL) {
-  structure(
-    list(
-      events = sort(events),
-      T_max = T_max,
-      params = params,
-      n = length(events),
-      type = type,
-      full_history = full_history
-    ),
-    class = "point_process_sim"
+                                   marks = NULL, full_history = NULL) {
+  out <- list(
+    events = sort(events),
+    marks = marks, # New field
+    T_max = T_max,
+    params = params,
+    n = length(events),
+    type = type,
+    full_history = full_history
   )
+  
+  # Add "marked_pp_sim" as a subclass if marks exist
+  class_vector <- "point_process_sim"
+  if (!is.null(marks)) class_vector <- c("marked_pp_sim", class_vector)
+  
+  structure(out, class = class_vector)
 }
+
 
 #' Simulation of a Poisson process
 #' 
@@ -377,4 +382,145 @@ print.point_process_sim <- function(x, ...) {
     )
   }
   cat("---\n")
+}
+
+#' Simulation of a Marked Hawkes Process by thinning
+#' 
+#' Simulation of a marked Hawkes process using a generalized version of Ogata's 
+#' thinning algorithm. This function allows for a flexible conditional intensity 
+#' that can depend on the history of both event times and their associated marks.
+#'
+#' @details 
+#' The simulation assumes that the `intensity_func` provided is non-increasing 
+#' between events. This allows the intensity at the time of the most recent 
+#' event (or the background rate) to serve as a local upper bound for the 
+#' next candidate arrival. 
+#' 
+#' For each successful arrival, a mark is generated using `rmark_func`. The 
+#' history of events (times and marks) is passed as separate vectors to the 
+#' intensity function to ensure high performance.
+#'
+#' @param T_max A non-negative numeric value - the end of the interval 
+#'   \eqn{[0,T_{max}]}.
+#' @param intensity_func A function that calculates the conditional intensity. 
+#'   It must accept arguments \code{t} (current time), \code{times} (vector of 
+#'   previous event times), and \code{marks} (vector of previous marks).
+#' @param rmark_func A function with no required arguments that returns a 
+#'   single value representing a mark (e.g., \code{function() rexp(1, 1)}).
+#' @param ... Additional arguments passed to \code{intensity_func}.
+#'
+#' @return An object of class \code{c("marked_pp_sim", "point_process_sim")}. 
+#' A list containing:
+#' \itemize{
+#'   \item \code{events}: A sorted numeric vector of arrival times.
+#'   \item \code{marks}: A numeric or character vector of marks associated with each event.
+#'   \item \code{T_max}: The end of the simulation window.
+#'   \item \code{params}: A list of the functions and parameters used for simulation.
+#'   \item \code{n}: The total number of events.
+#'   \item \code{type}: The string "Marked Hawkes".
+#' }
+#' @export
+#'
+#' @examples
+#' # Simple marked process: intensity depends on the sum of previous marks
+#' my_intens <- function(t, times, marks, lambda0) {
+#'   if (length(times) == 0) return(lambda0)
+#'   lambda0 + sum(marks * exp(-(t - times)))
+#' }
+#' 
+#' sim_mhp(T_max = 5, 
+#'         intensity_func = my_intens, 
+#'         rmark_func = function() runif(1, 0, 1), 
+#'         lambda0 = 1)
+sim_mhp <- function(T_max, intensity_func, rmark_func, ...) {
+  
+  # Guardrails
+  stopifnot(
+    "'T_max' must be positive" = is.numeric(T_max) && length(T_max) == 1 && T_max > 0,
+    "'intensity_func' must be a function" = is.function(intensity_func),
+    "'rmark_func' must be a function" = is.function(rmark_func)
+  )
+  
+  # Pre-allocate buffers (8KB start)
+  times_buf <- numeric(1024)
+  marks_buf <- numeric(1024)
+  t <- 0
+  count <- 0
+  
+  while (t < T_max) {
+    # Extract current history
+    h_times <- if (count == 0) numeric(0) else times_buf[1:count]
+    h_marks <- if (count == 0) numeric(0) else marks_buf[1:count]
+    
+    # Find upper bound (intensity at current time t)
+    M <- intensity_func(t = t, times = h_times, marks = h_marks, ...)
+    
+    if (is.na(M)) stop("Intensity calculation returned NA.")
+    
+    # Generate next candidate point
+    t <- t + stats::rexp(1, M)
+    if (t > T_max) break
+    
+    # Check actual intensity at candidate time
+    current_int <- intensity_func(t = t, times = h_times, marks = h_marks, ...)
+    
+    if (stats::runif(1) <= current_int / M) {
+      count <- count + 1
+      # Expand buffers if needed
+      if (count > length(times_buf)) {
+        times_buf <- c(times_buf, numeric(length(times_buf)))
+        marks_buf <- c(marks_buf, numeric(length(marks_buf)))
+      }
+      times_buf[count] <- t
+      marks_buf[count] <- rmark_func()
+    }
+  }
+  
+  .new_point_process_sim(
+    events = times_buf[seq_len(count)],
+    marks  = marks_buf[seq_len(count)],
+    T_max  = T_max,
+    params = list(intensity = intensity_func, rmark = rmark_func, dots = list(...)),
+    type   = "Marked Hawkes (iid marks)"
+  )
+}
+
+#' @export
+plot.marked_pp_sim <- function(x, ...) {
+  old_par <- par(no.readonly = TRUE)
+  on.exit(par(old_par))
+  
+  par(mfrow = c(2, 1), mar = c(4, 4, 2, 1))
+  
+  plot.point_process_sim(x)
+  
+  plot(x$events, x$marks, type = "h", 
+       xlim = c(0, x$T_max), ylim = c(0, max(x$marks, na.rm = TRUE) * 1.1),
+       xlab = "Time (t)", ylab = "Mark (m)",
+       main = "Mark Magnitudes over Time", col.main = "#2E3440", cex.main = 1.1,
+       col = "#4C566A", lwd = 1.5, bty = "l")
+  
+  points(x$events, x$marks, pch = 21, bg = "#88C0D0", col = "#4C566A", cex = 0.8)
+  
+  invisible(x)
+}
+
+
+#' @export
+print.marked_pp_sim <- function(x, ...) {
+  NextMethod("print")
+  
+  if (x$n > 0) {
+    cat("Marks:  ")
+    if (is.numeric(x$marks)) {
+      m_range <- range(x$marks, na.rm = TRUE)
+      cat("Numeric (Range: [", round(m_range[1], 2), ", ", round(m_range[2], 2), "])\n", sep = "")
+      cat("        First few: ", paste(round(utils::head(x$marks, 3), 3), collapse = ", "), "...\n")
+    } else {
+      cat(class(x$marks)[1], "\n")
+      cat("        First few: ", paste(utils::head(x$marks, 3), collapse = ", "), "...\n")
+    }
+  }
+  cat("---\n")
+  invisible(x)
 }
