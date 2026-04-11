@@ -1,6 +1,7 @@
 ---
 title: "Hawkes Notes & Exploration"
 author: "Devon Grossett"
+
 format:
   html:
     toc: true
@@ -8,9 +9,22 @@ format:
     code-fold: true
     css: styles.css
     theme: cosmo
+
+  pdf:
+    documentclass: amsart
+    number-sections: true
+    keep-tex: true
+    pdf-engine: xelatex
+    header-includes:
+      - \usepackage{amsmath}
+      - \usepackage{amssymb}
+      - \usepackage{mathtools}
+
 execute:
   freeze: auto
+
 bibliography: Hawkes_Bibtex.bib
+
 crossref:
   eq-prefix: "Equation"
   thm-prefix: "Theorem"
@@ -311,7 +325,8 @@ $\lambda p(t)$ on $[0, T]$
 
 Thus to generate the desired nonhomogeneous Poisson process, one can simulate 
 from a homogeneous Poisson process with rate $\tilde{\lambda} \geq \lambda(t)$ 
-for all $t \in [0, T]$, with $p(t) = \lambda(t) / \tilde{\lambda}$.
+for all $t \in [0, T]$, and then thin this process with 
+$p(t) = \lambda(t) / \tilde{\lambda}$.
 
 
 ::: {#prp-ogata .proposition}
@@ -511,7 +526,7 @@ In Ogata's algorithm the dominating rate $M(t)$ is implemented as a piecewise co
 
 Let $N$ be a simple point process with conditional intensity $\lambda^*(t)$ and
 compensator $\Lambda(t)$. If we observe all the arrival times over the time 
-period $[0, T ]$, denoted $\{t_1, \ldots, t_{N(T)} \}$, then the likelihood 
+period $[0, T ]$, denoted $\{t_1, \ldots, t_{N_T} \}$, then the likelihood 
 function $L(\boldsymbol{\theta} \mid \mathbf{t})$ for $N$ is 
 $$
 L(\boldsymbol{\theta} \mid \mathbf{t})= \left[ \prod_{i=1}^{N_T} \lambda^*(t_i 
@@ -776,7 +791,7 @@ cat("Maximum Likelihood Estimates with 95% CIs:\n", sprintf(
 
 ```
 
-```{r}
+```{r hawkesprocess_mle_plot}
 t_grid <- seq(0, T_max, length.out = 2000) 
 intensities <- sapply(t_grid, function(t_i) {
   past <- H_t[H_t < t_i]
@@ -866,7 +881,7 @@ with the following parameters
 - Shallow events down to 40km
 - Central New Zealand (the rectangular area 171°--179°E and 38°--43°S)
 
-```{r}
+```{r load_plot_nz_quakes}
 nz_quakes <- read.csv("data/nz_quakes_2000-2025_m4plus_shallow_central.csv")
 start_time <- as.POSIXct("2000-01-01 00:00:00", tz = "UTC")
 end_time <- as.POSIXct("2025-01-01 00:00:00", tz = "UTC")
@@ -897,7 +912,7 @@ add_counting_process(nz_quakes$days_from_origin, T_max)
 add_events(nz_quakes$days_from_origin)
 
 ```
-```{r}
+```{r plot_nz_quake_map}
 nz_map <- ne_countries(
   scale = "medium", 
   country = "New Zealand", 
@@ -940,40 +955,44 @@ $$
 $$
 where
 $$
-\begin{gather}
-\ell_{\lambda}(\boldsymbol{\theta}_{\lambda} \mid \mathcal{H}_T,T) = 
+\begin{aligned}
+\ell_{\lambda}(\boldsymbol{\theta}_{\lambda} \mid \mathcal{H}_T,T) &= 
   \sum_{i=1}^n \log \lambda_g^*(t_i) - \int_0^T \lambda_g^*(s) ds, \\
-\ell_f(\boldsymbol{\theta}_f \mid \mathcal{H}_T,T) = 
+\ell_f(\boldsymbol{\theta}_f \mid \mathcal{H}_T,T) &= 
   \sum_{i=1}^n \log f(m)
-\end{gather}
+\end{aligned}
 $$
 which can be maximised independently.
 
 For $\ell_f(\cdot)$, $m \sim \mathrm{Exp}(\beta)$ which has the MLE 
-$\hat{\beta} = 1/_\bar{m}$ with $\mathrm{SE}(\hat{\beta})=\hat{\beta}/\sqrt{n}$.
+$\hat{\beta} = 1/\bar{m}$ with $\mathrm{SE}(\hat{\beta})=\hat{\beta}/\sqrt{n}$.
 
 For the $\ell_{\lambda}(\cdot)$ term, we will want a closed form expression for
-$\Lambda_g(t)=\int_0^T \lambda_g^*(s) ds$:
+$\Lambda_g(t)=\int_0^T \lambda_g^*(s) ds$. For this we can use @eq-hawkes_compensator, 
+where $M(t)$ is given by:
 
 $$
 \begin{aligned}
-\Lambda_g(t) &= \int_0^t \lambda_g^*(s) ds \\
-&= \int_0^t \left( \lambda + \sum_{T_i<t} A e^{\alpha(M_i-m_0)} \frac{p-1}{c} 
-  \left(1 + \frac{s - T_i}{c} \right)^{-p} \right) ds \\
-&= \int_0^t \lambda ds + \sum_{T_i<t} \int_{T_i}^t A e^{\alpha(M_i-m_0)} 
-  \frac{p-1}{c} \left(1 + \frac{s - T_i}{c} \right)^{-p} ds \\
-&= \lambda t + A \frac{p-1}{c} \sum_{T_i<t} e^{\alpha(M_i-m_0)} 
-  \int_1^{1 + \frac{t - T_i}{c}}  u^{-p} c \,du \\
-&= \lambda t + A(p-1) \sum_{T_i<t} e^{\alpha(M_i-m_0)} \left[ \frac{u^{1-p}}{1-p}
-  \right]_1^{1 + \frac{t - T_i}{c}} \\
-&= \lambda t + A\sum_{T_i<t}e^{\alpha(M_i-m_0)}\left(1 - \left(1 + 
-  \frac{t-T_i}{c} \right)^{1-p} \right)
+M(t) 
+  &= \int_0^t A e^{\alpha(M_i-m_0)} \frac{p-1}{c} \left(1 + \frac{s}{c} \right)^{-p} {\rm d}s \\
+  &= A e^{\alpha(M_i-m_0)} (p-1) \int_1^{1+\frac{t}{c}} u^{-p} {\rm d}u \\
+  &= A e^{\alpha(M_i-m_0)} (p-1) \left[\frac{u^{1-p}}{1-p}\right]_1^{1+\frac{t}{c}} \\
+  &= A e^{\alpha(M_i-m_0)} \left( 1 - \left(1 + \frac{t}{c}\right)^{1-p} \right)
 \end{aligned}
 $$
 
+and therefore:
+
+$$
+\begin{aligned}
+\Lambda_g(t) 
+  &= \lambda t + \sum_{i=1}^{N_t}  M(t - t_i) \\
+  &= \lambda t + A\sum_{T_i<t}e^{\alpha(M_i-m_0)}\left(1-\left(1+\frac{t-T_i}{c} \right)^{1-p} \right)
+\end{aligned}
+$$
 This allows us to optimise $\ell_{\lambda}(\cdot)$ numercially using `optim`:
 
-```{r}
+```{r fit_mhp_nz_quakes}
 H_t <- data.frame(
   time = nz_quakes$days_from_origin, 
   mark = nz_quakes$magnitude - mag_thresh # simpler to work with shifted magnitudes
@@ -995,14 +1014,14 @@ etas_power_intensity <- function(theta, t, H_t) {
   lambda + (A*(p - 1)/c)*sum(exp(alpha*H_t$mark) * (1 + (t - H_t$time)/c)^(-p))
 }
 
-etas_exp_intensity <- function(theta, t, H_t) {
-  lambda <- theta[1]
-  A <- theta[2]
-  alpha <- theta[3]
-  gamma <- theta[4]
-  
-  lambda + A*sum(exp(alpha*H_t$mark) * exp(-gamma*(t - H_t$time)))
-}
+# etas_exp_intensity <- function(theta, t, H_t) {
+#   lambda <- theta[1]
+#   A <- theta[2]
+#   alpha <- theta[3]
+#   gamma <- theta[4]
+#   
+#   lambda + A*sum(exp(alpha*H_t$mark) * exp(-gamma*(t - H_t$time)))
+# }
 
 etas_power_compensator <- function(theta, t, H_t) {
   lambda <- theta[1]
@@ -1014,14 +1033,14 @@ etas_power_compensator <- function(theta, t, H_t) {
   lambda*t + A*sum(exp(alpha*H_t$mark)*(1 - (1 + (t - H_t$time)/c)^(1-p)))
 }
 
-etas_exp_compensator <- function(theta, t, H_t) {
-  lambda <- theta[1]
-  A <- theta[2]
-  alpha <- theta[3]
-  gamma <- theta[4]
-  
-  lambda*t + (A/gamma)*sum(exp(alpha*H_t$mark)*(1 - exp(-gamma*(t - H_t$time))))
-}
+# etas_exp_compensator <- function(theta, t, H_t) {
+#   lambda <- theta[1]
+#   A <- theta[2]
+#   alpha <- theta[3]
+#   gamma <- theta[4]
+#   
+#   lambda*t + (A/gamma)*sum(exp(alpha*H_t$mark)*(1 - exp(-gamma*(t - H_t$time))))
+# }
 
 etas_power_loglik <- function(theta, T_max, H_t) {
   # this is an expensive O([N(T_max)]^2) computation
@@ -1039,21 +1058,21 @@ etas_power_negloglik <- function(theta, T_max, H_t) {
   -etas_power_loglik(theta, T_max, H_t)
 }
 
-etas_exp_loglik <- function(theta, T_max, H_t) {
-  # this is an expensive O([N(T_max)]^2) computation
-  log_intensities <- sapply(1:nrow(H_t), function(i) {
-    t_i <- H_t$time[i]
-    past_events <- H_t[H_t$time < t_i, ]
-    log(etas_exp_intensity(theta = theta, t = t_i, H_t = past_events))
-  })
-  
-  # total log-likelihood = sum(log(intensities)) - compensator at T
-  sum(log_intensities) - etas_exp_compensator(theta = theta, t = T_max, H_t = H_t)
-}
+# etas_exp_loglik <- function(theta, T_max, H_t) {
+#   # this is an expensive O([N(T_max)]^2) computation
+#   log_intensities <- sapply(1:nrow(H_t), function(i) {
+#     t_i <- H_t$time[i]
+#     past_events <- H_t[H_t$time < t_i, ]
+#     log(etas_exp_intensity(theta = theta, t = t_i, H_t = past_events))
+#   })
+# 
+#   # total log-likelihood = sum(log(intensities)) - compensator at T
+#   sum(log_intensities) - etas_exp_compensator(theta = theta, t = T_max, H_t = H_t)
+# }
 
-etas_exp_negloglik <- function(theta, T_max, H_t) {
-  -etas_exp_loglik(theta, T_max, H_t)
-}
+# etas_exp_negloglik <- function(theta, T_max, H_t) {
+#   -etas_exp_loglik(theta, T_max, H_t)
+# }
 
 fit_power <- optim(
   par = c(0.2, 0.2, 1.2, 0.2, 1.2),
@@ -1080,30 +1099,32 @@ cat("\nMaximum Likelihood Estimates with 95% CIs:\n", sprintf(
   mle_power[5], 1.96*se_power[5]
 ))
 
-fit_exp <- optim(
-  par = c(1, 1, 1, 1), 
-  fn = etas_exp_negloglik, 
-  H_t = H_t,
-  T_max = T_max,
-  method = "L-BFGS-B",
-  lower = c(1e-6, 1e-6, 1e-6, 1e-6),
-  control=list(trace=2),
-  hessian = TRUE
-)
+# fit_exp <- optim(
+#   par = c(1, 1, 1, 1), 
+#   fn = etas_exp_negloglik, 
+#   H_t = H_t,
+#   T_max = T_max,
+#   method = "L-BFGS-B",
+#   lower = c(1e-6, 1e-6, 1e-6, 1e-6),
+#   control=list(trace=2),
+#   hessian = TRUE
+# )
 
-mle_exp <- fit_exp$par
-v_cov_exp <- solve(fit_exp$hessian)
-se_exp <- sqrt(diag(v_cov_exp))
+# mle_exp <- fit_exp$par
+# v_cov_exp <- solve(fit_exp$hessian)
+# se_exp <- sqrt(diag(v_cov_exp))
 
-cat("\nMaximum Likelihood Estimates with 95% CIs:\n", sprintf(
-  "beta_mle = %.3f ± %.3f \n lambda_mle = %.3f ± %.3f \n A_mle = %.3f ± %.3f \n alpha_mle = %.3f ± %.3f \n gamma_mle = %.3f ± %.3f \n\n", 
-  beta, 1.96*beta_se,
-  mle_exp[1], 1.96*se_exp[1], 
-  mle_exp[2], 1.96*se_exp[2], 
-  mle_exp[3], 1.96*se_exp[3], 
-  mle_exp[4], 1.96*se_exp[4]
-))
+# cat("\nMaximum Likelihood Estimates with 95% CIs:\n", sprintf(
+#   "beta_mle = %.3f ± %.3f \n lambda_mle = %.3f ± %.3f \n A_mle = %.3f ± %.3f \n alpha_mle = %.3f ± %.3f \n gamma_mle = %.3f ± %.3f \n\n", 
+#   beta, 1.96*beta_se,
+#   mle_exp[1], 1.96*se_exp[1], 
+#   mle_exp[2], 1.96*se_exp[2], 
+#   mle_exp[3], 1.96*se_exp[3], 
+#   mle_exp[4], 1.96*se_exp[4]
+# ))
 ```
+
+## Goodness of Fit
 
 A useful technique exists to assess the goodness-of-fit of some point data to 
 a generic model for the point data. This technique uses the compensator, 
@@ -1125,22 +1146,16 @@ realisation from the point process defined by $\Lambda(\cdot)$.
 Hence, equipped with a closed form of the compensator, the quality of the
 inference can be ascertained using standard fitness tests for Poisson processes.
 
-This method is applied to both the power decay, and exponential decay models fit
-to the central NZ earthquake catalogue. We compare the quantiles of the 
-transformed process to the theoretical values of a $\mathrm{Exp(1)}$ random 
-variable, and perform a Kolmogorov-Smirnov test.
+This method is applied to the power decay Hawkes models fit of the central NZ 
+earthquake catalogue. We compare the quantiles of the transformed process to the
+theoretical values of a $\mathrm{Exp(1)}$ random variable, and perform a
+Kolmogorov-Smirnov test.
 
-Below we can see that the power decay more closely follows the theoretical 
-quantiles, and the KS test agrees with us not rejecting the null hypothesis at 
-a 5% level that the transformed process follows a $\mathrm{Exp(1)}$ distribution.
-Therefore we conclude the original point process follows a Hawkes process
-defined by the compensator used to transform the data.
-
-On the other hand, we can detect deviations from the theoretical quantiles
-for the exponential decay model, and a KS test that rejects the null hypothesis
-at a 5% level that the transformed process follows a $\mathrm{Exp(1)}$ 
-distribution. Therefore we conclude the original point process does not follow a
-Hawkes process defined by the compensator used to transform the data.
+Below we can see that the power more closely follows the theoretical quantiles, 
+and the KS test agrees with us not rejecting the null hypothesis at a 5% level 
+that the transformed process follows a $\mathrm{Exp(1)}$ distribution.
+Therefore we cannot reject the hypothesis that the original point process 
+follows a Hawkes process defined by the compensator used to transform the data.
 
 ```{r}
 # For each event i, calculate the compensator value at time t_i
@@ -1170,40 +1185,6 @@ graphics::points(theoretical_q, sort(gaps_power), col = "#5E81AC", pch = 20, cex
 
 # subtitle for the Kolmogorov-Smirnov test
 ks_res <- ks.test(gaps_power, "pexp", rate = 1)
-ks_text <- sprintf("K-S Test p-value: %.4f", ks_res$p.value)
-graphics::mtext(ks_text, side = 3, line = 0.2, cex = 0.8, col = "#4C566A")
-
-```
-
-
-```{r}
-# For each event i, calculate the compensator value at time t_i
-theta <- fit_exp$par
-tau_exp <- sapply(1:nrow(H_t), function(i) {
-  ti <- H_t[i, "time"]
-  hi <- H_t[1:(i - 1), ] # Only use history up to this point
-  etas_exp_compensator(theta = theta, H_t = hi, t = ti)
-})
-
-# convert to inter-arrival times 
-gaps_exp <- diff(c(0, tau_exp))
-n <- length(gaps_exp)
-
-max_val_exp <- max(qexp(stats::ppoints(n)), gaps_exp) * 1.05
-
-plot_base_canvas(
-  xlim  = c(0, max_val_exp), 
-  ylim  = c(0, max_val_exp), 
-  title = "Residual Q-Q Plot - Exponential Decay",
-  xlab  = "Theoretical Exp(1) Quantiles",
-  ylab  = "Sample Residual Quantiles"
-)
-graphics::abline(0, 1, col = "#BF616A", lty = 2, lwd = 2)
-theoretical_q <- qexp(stats::ppoints(n))
-graphics::points(theoretical_q, sort(gaps_exp), col = "#5E81AC", pch = 20, cex = 0.7)
-
-# subtitle for the Kolmogorov-Smirnov test
-ks_res <- ks.test(gaps_exp, "pexp", rate = 1)
 ks_text <- sprintf("K-S Test p-value: %.4f", ks_res$p.value)
 graphics::mtext(ks_text, side = 3, line = 0.2, cex = 0.8, col = "#4C566A")
 

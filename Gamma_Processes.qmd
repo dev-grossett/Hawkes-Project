@@ -12,17 +12,18 @@ bibliography: Hawkes_Bibtex.bib
 ## Dirichlet Process
 
 ::: {#def-dirichlet_process .definition}
-## Dirichlet Process -- DP [@Muller2015_BayesianNonparametrics])
+## Dirichlet Process -- DP [@Muller2015_BayesianNonparametrics]
 
 Let $\alpha > 0$ and $G_0$ be a probability measure defined on $S$. A DP with 
 parameters $(\alpha, G_0)$ is a random probability measure $G$ defined on $S$
 which assigns probability $G(B)$ to every (measurable) set $B$ such that for 
-each (measurable) finite partition $\{B_1,\ldots,B_k\}$ of $S$, the joint 
-distribution of the vector $(G(B_1),\ldots,G(B_k))$ is the Dirichlet 
-distribution with parameters
+each (measurable) finite partition $\{B_1,\ldots,B_k\}$ of $S$, the vector 
+$(G(B_1),\ldots,G(B_k))$ has the joint distribution. 
 $$
-(\alpha G_0(B_1),\ldots,\alpha G_0(B_k))
+(G(B_1),\ldots,G(B_k)) \sim \mathrm{Dir}(\alpha G_0(B_1),\ldots,\alpha G_0(B_k))
 $$
+where $\mathrm{Dir}(\cdot)$ is the Dirichlet distribution.
+
 :::
 
 The process is usually denoted as $\mathrm{DP}(\alpha G_0)$, or 
@@ -37,14 +38,14 @@ $v_{\ell}\stackrel{iid}{\sim} \mathrm{Beta}(1, \alpha)$ and $\theta_k\stackrel{i
 where $\{v_k\}$ and $\{\theta_k\}$ are independent. Then 
 $$
 G(\cdot) = \sum_{k=1}^\infty \tilde{w}_k\delta_{\theta_k}(\cdot)
-$$
+$$ {#eq-dp_stickbreak}
 defines a $\mathrm{DP}(\alpha G_0)$ random measure. 
 
 In reality, we can choose some $k=K$ at which to truncate the series where 
 beyond it, the values of $\tilde{w}_k$ become negligible. At that point, we can
 set $v_K=1$, i.e. no stick breaking beyond this point.
 
-```{r}
+```{r dp_stickbreak_func}
 dp_stickbreak <- function(alpha, g0 = rexp, k_trunc = 100, ...) {
   # draw atoms from G_0
   theta <- g0(k_trunc, ...)
@@ -64,7 +65,7 @@ dp_stickbreak <- function(alpha, g0 = rexp, k_trunc = 100, ...) {
 An example with the base probability measure $H_0 \sim N(0,1)$, to visualise 
 what the draws of a DP look like with varying $\alpha$.
 
-```{r}
+```{r plot_dp_draws}
 set.seed(1234)
 par(mfrow = c(2, 2), mar = c(4, 5, 3, 1), oma = c(0, 0, 2, 0))
 
@@ -99,7 +100,7 @@ mtext(expression(paste("50 DP Realizations with ", G[0], " ~ N(0,1)")),
 
 The Dirichlet Process is conjugate with respect to the sampling model 
 $$
-y_i \mid G \stackrel{iid}{\sim} G,\quad i=1,\ldots,n
+y_i \mid G \stackrel{\rm iid}{\sim} G,\quad i=1,\ldots,n
 $$
 such that if $G \sim \mathrm{DP}(\alpha G_0)$, then
 $$
@@ -107,7 +108,7 @@ G \mid y_1, \ldots, y_n \sim \mathrm{DP}\left(\alpha+n,
   \frac{\alpha G_0 + \sum_{i=1}^n \delta_{y_i}}{\alpha + n}\right)
 $$
 
-```{r}
+```{r dp_posterior_draws}
 # function to sample from the posterior based on a DP(alpha, g0) prior
 dp_post_stickbreak <- function(alpha, g0 = rexp, k_trunc = 100, obs, ...) {
   # helper function for simulation from centering measure of posterior DP
@@ -130,7 +131,7 @@ Lets imagine we observe some data from a mixture of normals
 $Y_i \sim 0.5N_1 + 0.5N_2$, $i=1,\ldots,n$ with 
 $\mu_1=-1,\mu_2=1,\sigma_1^2=\sigma_2^2=0.5$ and $n=100$.
 
-```{r}
+```{r plot_dp_posterior_draws}
 set.seed(12345)
 
 p <- rbinom(100, 1, 0.5)
@@ -182,7 +183,7 @@ mtext(expression(paste("50 Posterior DP Realizations from prior DP(", alpha, ", 
 ## Gamma Process Prior
 
 ::: {#def-gamma_process .definition}
-## Gamma Process [@Phadia2016_PriorProcesses])
+## Gamma Process [@Phadia2016_PriorProcesses]
 
 Let $\{Z_t\}_{t\geq0}$ be a stochastic process such that (i) $Z_0=0$, (ii) $Z_t$
 has independent increments in non-overlapping intervals; and (iii) for $t>s$, 
@@ -212,17 +213,36 @@ scaling the resulting weights by a random total mass
 $\gamma \sim \mathrm{Gamma}(\alpha,\beta)$.
 
 Using the stick breaking construction of the DP, this leads to the following
-representation
-$$
-G(\cdot) = \gamma \sum_{k=1}^\infty v_k \prod_{\ell < k} (1-v_\ell) \delta_{\theta_k}(\cdot)
-$$
-where $\gamma \sim \mathrm{Gamma}(\alpha,\beta)$, 
-$\theta_k \stackrel{iid}{\sim} H_0$, and
-$v_k \stackrel{iid}{\sim} \mathrm{Beta}(1,\alpha)$ for $k=1,2,\ldots$. As above
-for the DP, we truncate the weights at some $k=K$ sufficiently large so that 
-this approximation is negligible.
+representation:
 
-```{r}
+$$
+\begin{aligned}
+\theta_k \mid H_0 &\stackrel{\rm iid}{\sim} H_0 \qquad k=1,2,\ldots\\
+v_k \mid \alpha &\stackrel{\rm iid}{\sim} \mathrm{Be}(1,\alpha)\\
+\tilde{w}_k &= v_k \prod_{\ell<k} (1-v_\ell)\\
+\gamma &\sim \mathrm{Ga}(\alpha,\beta)\\
+G({\rm d}u) &= \gamma\sum_{k=1}^\infty \tilde{w}_k \delta_{\theta_k}({\rm d}u)
+\end{aligned}
+$$ {#eq-gp_stickbreak}
+
+Since the weights are stochastically decreasing in $k$, we can truncate our
+draws of $v_k$ at some sufficiently large value of $K$, set the final weight 
+$\tilde{w}_K$ to be one minus the sum of the previous $(1-K)$ weights,and 
+represent the Gamma Process Prior as a finite sum with minimal impact on 
+accuracy. This looks like:
+
+$$
+\begin{aligned}
+\theta_k \mid H_0 &\stackrel{iid}{\sim} H_0 \qquad k=1,2,\ldots,K \\
+v_k \mid \alpha &\stackrel{iid}{\sim} \mathrm{Be}(1,\alpha) \qquad k=1,2,\ldots,K-1 \\
+\tilde{w}_k &= v_k \prod_{\ell < k} (1-v_\ell) \qquad k=1,2,\ldots,K-1 \\
+\tilde{w}_K &= 1 - \sum_{k=1}^{K-1}\tilde{w}_k = \prod_{\ell=1}^{K-1}(1-v_\ell) \\
+\gamma &\sim \mathrm{Ga}(\alpha,\beta) \\
+G({\rm d}u) &= \gamma \sum_{k=1}^K \tilde{w}_k \delta_{\theta_k}({\rm d}u)
+\end{aligned}
+$$ {#eq-gp_stickbreak_truncate}
+
+```{r gp_draws}
 gp_from_dp <- function(alpha, beta, g0 = rexp, k_trunc = 100, ...) {
   gamma <- rgamma(1, alpha, rate = beta)
   dp <- dp_stickbreak(alpha = alpha, g0 = g0, k_trunc = k_trunc)
@@ -239,7 +259,7 @@ An example of draws of a Gamma process with base measure
 $H_0 \sim \mathrm{Exp}(1)$, where we have shown plots of the cumulative measure
 $G([0,t])$
 
-```{r}
+```{r plot_gp_draws}
 set.seed(123456)
 par(mfrow = c(2, 2), mar = c(4, 5, 3, 1), oma = c(0, 0, 2, 0))
 
@@ -269,4 +289,289 @@ for (j in 1:4) {
   }
 }
 ```
+
+## Hawkes Process with Gamaa Process Priors (GaPP)
+
+For a univariate Hawkes Process, the conditional intensity function is:
+$$
+\lambda^*(t) = \lambda_0 + \sum_{t_i<t}\mu(t-t_i)
+$$
+
+We will consider a GaPP for $\mu(\cdot)$ constructed so that any realisation of
+it is a non-increasing function (a similar constraint to the common exponential 
+and power decay Hawkes kernels). 
+
+We will define a non-parametric form of $\mu(\cdot)$ using a GaPP:
+$$
+\mu(t) = \int_t^\infty G({\rm d}u) = \gamma \sum_{k=1}^K\tilde{w}_k I(\theta_k > t)
+$$
+
+Following 
+@Arnold2023_BayesNonparametricBathtub where they reparameterise the background 
+intensity (or in their case, the baseline hazard rate) as 
+$\lambda_0 = \gamma \eta$, the conditional intesnity function of the Hawkes 
+Process can be written as
+$$
+\begin{aligned}
+\lambda^*(t \mid \gamma, \eta, \boldsymbol{\theta}, \mathbf{v}) 
+  &= \gamma \eta + \gamma \sum_{t_i<t}\sum_{k=1}^K\tilde{w}_k I(\theta_k > t-t_i) \\
+  &= \gamma \tilde{\lambda}^*(t \mid \eta, \boldsymbol{\theta}, \mathbf{v})
+\end{aligned}
+$$ {#eq-hp_intensity_gapp}
+where 
+$$
+\tilde{\lambda}^*(t \mid \eta, \boldsymbol{\theta}, \mathbf{v})
+  = \eta + \sum_{t_i<t}\sum_{k=1}^K\tilde{w}_k I(\theta_k > t-t_i)
+$$
+
+For additional interpretability, we can swap the summation order and note that 
+in @eq-hp_intensity_gapp, $\sum_{t_i<t}I(t-t_i < \theta_k)$ is simply counting 
+the number of events before time $t$ that occured within the last $\theta_k$ 
+time units. Therefore, the Gamma Process Prior for the Hawkes Process has the 
+interpretation that each event that occured within the last $\theta_k$ time 
+units of a given time $t$ contributes $\gamma\tilde{w}_k$ to the conditional 
+intensity, and this effect stacks for all atoms $\theta_k$ drawn from the 
+Gamma Process Prior. Based on this interpretation, we can define a counting 
+process from that term of the conditional intensity
+$$
+N_k(t_i) = \sum_{j=1}^{i-1}I(t_i-t_j < \theta_k) = \#\{j<i:t_i-t_j<\theta_k\}
+$$
+
+Before we calculate the compensator of a Hawkes Process of this form, we note
+that:
+$$
+\begin{aligned}
+\int_0^t \mu(u){\rm d}u &= \int_0^t \gamma \sum_{k=1}^K\tilde{w}_k I(u < \theta_k) {\rm d}u \\
+&= \gamma \sum_{k=1}^K \tilde{w}_k \int_0^t I(u < \theta_k) {\rm d}u \\
+&= \gamma \sum_{k=1}^K \int_0^{\mathrm{min}\{t,\theta_k\}} {\rm d}u \\
+&= \gamma \sum_{k=1}^K \tilde{w}_k \mathrm{min}\{t,\theta_k\}
+\end{aligned}
+$$
+
+Therefore, as the compensator of a Hawkes Process is 
+$\Lambda^*(t) = \int_0^t \lambda^*(u) {\rm d}u = \lambda_0 t + \sum_{i=1}^{N_t}  M(t - t_i)$,
+where $M(t) = \int_0^t\mu(u) {\rm d}u$, we can write the compensator of a 
+Hawkes Process with a truncated Gamma Process Prior as: 
+$$
+\begin{aligned}
+\Lambda^*(T \mid \gamma, \eta, \boldsymbol{\theta}, \mathbf{v}) 
+  &= \gamma \eta T + \gamma \sum_{i=1}^{N_T}\sum_{k=1}^K \tilde{w}_k \min\{T-t_i,\theta_k\} \\
+  &= \gamma \eta T + \gamma \sum_{k=1}^K \tilde{w}_k \sum_{i=1}^{N_T} \min\{T-t_i,\theta_k\} \\
+  &= \gamma \tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})
+\end{aligned}
+$$ {#eq-hp_compensator_gapp}
+where 
+$$
+\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})
+  = \eta T +  \sum_{k=1}^K \tilde{w}_k \sum_{i=1}^{N_T} \min\{T-t_i,\theta_k\}
+$$
+
+The likelihood for a Hawkes Process observed over the period $[0,T]$ with a
+Gamma Process Prior for the excitation function is then
+$$
+\begin{aligned}
+L &= \left[ \prod_{i=1}^{N_T} \gamma\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v}) \right] 
+    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})} \\
+  &= \left[ \prod_{i=1}^{N_T} \gamma\left(\eta + \sum_{k=1}^K\tilde{w}_k N_k(t_i)\right)\right] \\
+  &\quad\times\exp\left\{ -\gamma \left( \eta T +  \sum_{k=1}^K \tilde{w}_k \sum_{i=1}^{N_T} \min\{T-t_i,\theta_k\} \right) \right\} \\
+\end{aligned}
+$$ {#eq-hp_likelihood_gapp}
+with log-likelihood
+$$
+\begin{aligned}
+\ell
+  &= N_T\log\gamma + \sum_{i=1}^{N_T} \log \left(\eta + \sum_{k=1}^K\tilde{w}_k N_k(t_i)\right) \\
+  &\quad -\gamma \eta T + \gamma\sum_{k=1}^K \tilde{w}_k \sum_{i=1}^{N_T} \min\{T-t_i,\theta_k\} \\
+\end{aligned}
+$$ {#eq-hp_loglikelihood_gapp}
+
+### Inference
+
+Our full model with chosen priors is
+
+$$
+\begin{aligned}
+t_i \mid \gamma, \eta, \boldsymbol{\theta}, \mathbf{v} 
+  &\stackrel{\rm iid}{\sim} \mathrm{HP}(\gamma \tilde{\lambda}^*(\cdot \mid \eta, \boldsymbol{\theta}, \mathbf{v}))
+  \qquad i=1,\ldots,N_T \\
+  \theta_k \mid H_0, \phi &\stackrel{\rm iid}{\sim} \mathrm{Exp}(\phi) \qquad k=1,\ldots,K \\
+  v_k \mid \alpha &\stackrel{\rm iid}{\sim} \mathrm{Beta}(1,\alpha) \qquad k=1,\ldots,K-1 \\
+  \gamma \mid \alpha, \beta &\sim \mathrm{Ga}(\alpha, \beta) \\
+  \eta \mid \nu &\sim \mathrm{Exp}(\nu) \\
+  \alpha \mid a_1, a_2 &\sim \mathrm{Ga}(a_1, a_2) \\
+  \beta \mid b_1, b_2 &\sim \mathrm{Ga}(b_1, b_2) \\
+  \phi \mid f_1, f_2 &\sim \mathrm{Ga}(f_1, f_2) \\
+\end{aligned}
+$$
+The following three parameters have simple Gibbs updates due to conjugacy:
+
+#### $\gamma$:
+
+$$
+\begin{aligned}
+p(\gamma \mid -) 
+  &\propto p(\mathbf{t} \mid -)p(\gamma \mid \alpha,\beta) \\
+  &\propto \prod_{i=1}^{N_T} \left[\gamma \tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right]
+    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})}
+    \gamma^{\alpha-1}e^{-\beta\gamma} \\
+  &\propto \gamma^{N_T}e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})} 
+    \gamma^{\alpha-1}e^{-\beta\gamma} \\ 
+  &\propto \gamma^{(\alpha + N_T)-1}e^{-\gamma(\beta + \tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v}))}
+\end{aligned}
+$$
+
+Therefore the Gibbs update is 
+$$
+\gamma \mid - 
+  \sim \mathrm{Ga}\left(\alpha + N_T,\beta + \tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right)
+$$
+
+
+#### $\beta$:
+
+$$
+\begin{aligned}
+p(\beta \mid -) 
+  &\propto p(\gamma \mid \alpha,\beta)p(\beta) \\
+  &\propto \beta^{\alpha}e^{-\beta\gamma} \beta^{b_1-1}e^{-b_2\beta} \\
+  &\propto \beta^{(\alpha + b_1)-1}e^{-\beta(\gamma + b_2)}
+\end{aligned}
+$$
+
+
+Therefore the Gibbs update is 
+$$
+\beta \mid - 
+  \sim \mathrm{Ga}\left( \alpha + b_1,\gamma + b_2 \right)
+$$
+
+#### $\phi$:
+
+$$
+\begin{aligned}
+p(\phi \mid -) 
+  &\propto p(\boldsymbol{\theta} \mid \phi)p(\phi) \\
+  &\propto \left[\prod_{k=1}^K \phi e^{-\phi \theta_k}\right]\phi^{f_1-1}e^{-\phi f_2} \\
+  &\propto \phi^K e^{-\phi\sum_{k=1}^K\theta_k}\phi^{f_1-1}e^{-\phi f_2} \\
+  &\propto \phi^{(f_1 + K)-1}e^{-\phi\left(f_2 + \sum_{k=1}^K\theta_k\right)}
+\end{aligned}
+$$
+
+
+Therefore the Gibbs update is 
+$$
+\phi \mid - 
+  \sim \mathrm{Ga}\left( f_1 + K, f_2 + \sum_{k=1}^K\theta_k \right)
+$$
+
+The remaining parameters require Metropolis-Hastings updates.
+
+$$$$ $\eta$:
+
+$$
+\begin{aligned}
+p(\eta \mid -) 
+  &\propto p(\mathbf{t} \mid -)p(\eta) \\
+  &\propto \prod_{i=1}^{N_T} \left[\gamma \tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right]
+    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})}
+   e^{-\nu \eta} \\
+  &\propto \prod_{i=1}^{N_T} \left[\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right] 
+    e^{-\gamma \eta T - \nu\eta}
+\end{aligned}
+$$
+
+M-H update of $\tilde{\eta} = \log\eta$ with Normal proposal: 
+$\mathrm{N}(\tilde{\eta},\sigma_\tilde{\eta}^2)$. This transformation has Jacobian 
+$\left|\frac{{\rm d}\eta}{{\rm}d\tilde{\eta}}\right| = \eta$, and therefore
+$$
+\begin{aligned}
+p(\tilde{\eta} \mid -) 
+  &= p(\eta = e^{\tilde{\eta}} \mid -)\left|\frac{{\rm d}\eta}{{\rm}d\tilde{\eta}}\right| \\
+  &= p(\eta = e^{\tilde{\eta}} \mid -) \eta \\
+\log p(\tilde{\eta} \mid -) &= \log p(\eta = e^{\tilde{\eta}} \mid -) + \log \eta
+\end{aligned}
+$$
+
+As the proposal distribution is symmetric, the acceptance ratio is simply 
+$$
+r = \frac{p(\tilde{\eta}^* \mid -)}{p(\tilde{\eta} \mid -)}
+$$
+
+$$$$ $\alpha$:
+
+$$
+\begin{aligned}
+p(\alpha \mid -) 
+  &\propto p(\gamma \mid \alpha, \beta)p(\mathbf{v} \mid \alpha)p(\alpha) \\
+  &\propto \frac{\beta^\alpha}{\Gamma(\alpha)} \gamma^{\alpha-1}
+    \left[ \prod_{k=1}^{K-1} \alpha (1-v_k)^{\alpha-1} \right] \alpha^{a_1 - 1}e^{-a_2\alpha} \\
+  &\propto \frac{1}{\Gamma(\alpha)} \alpha^{a_1 + K - 2} (\beta\gamma)^\alpha \tilde{w}_K^\alpha e^{-a_2\alpha} \\
+  &\propto \frac{1}{\Gamma(\alpha)} \alpha^{a_1 + K - 2} e^{-\alpha(-\log{\beta\gamma} - \log\tilde{w}_K + a_2)} \\
+\end{aligned}
+$$
+
+As above, the M-H update is of $\tilde{\alpha} = \log\alpha$ with Normal proposal: 
+$\mathrm{N}(\tilde{\alpha},\sigma_\tilde{\alpha}^2)$. 
+
+As the proposal distribution is symmetric, the acceptance ratio is simply 
+$$
+r = \frac{p(\tilde{\alpha}^* \mid -)}{p(\tilde{\alpha} \mid -)}
+$$
+
+$$$$ $\theta_k$:
+
+$$
+\begin{aligned}
+p(\theta_k \mid -) 
+  &\propto p(\mathbf{t} \mid -) p(\theta_k \mid \phi) \\
+  &\propto \left[\prod_{i=1}^{N_t}\gamma\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right] 
+    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})} e^{-\phi\theta_k} \\
+  &\propto \left[\prod_{i=1}^{N_t}\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right] 
+    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})} e^{-\phi\theta_k} \\
+\end{aligned}
+$$
+
+The sampling scheme for this comes from @Arnold2020_BayesNonparametricBathtub, 
+where mixing is assisted by selecting an atom at random from the unscaled 
+weights $\tilde{w}$. For each pass of the sampler we update $k_\text{sim} \leq K$
+randomly selected atoms (selected with replacement). This ensures that the most
+influential support points are updated with greatest frequency.
+
+Of the selected atoms, we update $\tilde{\theta}_k = \log\theta_k$ with Normal
+proposal: $\mathrm{N}(\tilde{\theta}_k,\sigma_{\tilde{\theta}_k}^2)$.
+
+As the proposal distribution is symmetric, the acceptance ratio is simply 
+$$
+r = \frac{p(\tilde{\theta}_k^* \mid -)}{p(\tilde{\theta}_k \mid -)}
+$$
+
+$$$$ $v_k$:
+
+$$
+\begin{aligned}
+p(v_k \mid -) 
+  &\propto p(\mathbf{t} \mid -) p(v_k \mid \alpha) \\
+  &\propto \left[\prod_{i=1}^{N_t}\gamma\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right] 
+    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})} e^{-\phi\theta_k} \\
+  &\propto \left[\prod_{i=1}^{N_t}\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right] 
+    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})} (1-v_k)^{\alpha-1} \\
+\end{aligned}
+$$
+
+M-H update of $\tilde{v}_k = \text{logit}(\eta)$ with Normal proposal: 
+$\mathrm{N}(\tilde{v}_k,\sigma_{\tilde{v}_k}^2)$. This transformation has Jacobian 
+$\left|\frac{{\rm d}v_k}{{\rm}d\tilde{v}_k}\right| = v_k(1-v_k)$, and therefore
+$$
+\begin{aligned}
+p(\tilde{v}_k \mid -) 
+  &= p(v_k = \text{logit}^{-1}(\tilde{v}_k) \mid -)\left|\frac{{\rm d}v_k}{{\rm}d\tilde{v}_k}\right| \\
+  &= p(v_k = \text{logit}^{-1}(\tilde{v}_k) \mid -) v_k(1-v_k) \\
+\log p(\tilde{v}_k \mid -) &= \log p(v_k = \text{logit}^{-1}(\tilde{v}_k) \mid -) + \log v_k + \log(1-v_k)
+\end{aligned}
+$$
+
+As the proposal distribution is symmetric, the acceptance ratio is simply 
+$$
+r = \frac{p(\tilde{v}_k^* \mid -)}{p(\tilde{v}_k \mid -)}
+$$
 

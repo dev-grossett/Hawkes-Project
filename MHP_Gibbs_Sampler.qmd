@@ -33,7 +33,7 @@ e.g.
 $$
 \begin{gather}
 h(t-t_i, m_i) = \eta(m_i)g(t-t_i) \\
-\eta(m) = Ae^{\alpha(m)} \\
+\eta(m) = Ae^{\alpha m} \\
 g(t) = \beta e^{-\beta t}
 \end{gather}
 $$
