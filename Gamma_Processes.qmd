@@ -245,7 +245,7 @@ $$ {#eq-gp_stickbreak_truncate}
 ```{r gp_draws}
 gp_from_dp <- function(alpha, beta, g0 = rexp, k_trunc = 100, ...) {
   gamma <- rgamma(1, alpha, rate = beta)
-  dp <- dp_stickbreak(alpha = alpha, g0 = g0, k_trunc = k_trunc)
+  dp <- dp_stickbreak(alpha = alpha, g0 = g0, k_trunc = k_trunc, ...)
   return(list(
     theta = dp$theta, 
     weights = gamma*dp$weights, 
@@ -538,7 +538,7 @@ randomly selected atoms (selected with replacement). This ensures that the most
 influential support points are updated with greatest frequency.
 
 Of the selected atoms, we update $\tilde{\theta}_k = \log\theta_k$ with Normal
-proposal: $\mathrm{N}(\tilde{\theta}_k,\sigma_{\tilde{\theta}_k}^2)$.
+proposal: $\mathrm{N}(\tilde{\theta}_k,\sigma_\tilde{\theta}^2)$.
 
 As the proposal distribution is symmetric, the acceptance ratio is simply 
 $$
@@ -552,14 +552,14 @@ $$
 p(v_k \mid -) 
   &\propto p(\mathbf{t} \mid -) p(v_k \mid \alpha) \\
   &\propto \left[\prod_{i=1}^{N_t}\gamma\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right] 
-    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})} e^{-\phi\theta_k} \\
+    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})}  (1-v_k)^{\alpha-1} \\
   &\propto \left[\prod_{i=1}^{N_t}\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right] 
     e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})} (1-v_k)^{\alpha-1} \\
 \end{aligned}
 $$
 
 M-H update of $\tilde{v}_k = \text{logit}(\eta)$ with Normal proposal: 
-$\mathrm{N}(\tilde{v}_k,\sigma_{\tilde{v}_k}^2)$. This transformation has Jacobian 
+$\mathrm{N}(\tilde{v}_k,\sigma_\tilde{v}^2)$. This transformation has Jacobian 
 $\left|\frac{{\rm d}v_k}{{\rm}d\tilde{v}_k}\right| = v_k(1-v_k)$, and therefore
 $$
 \begin{aligned}
@@ -574,4 +574,346 @@ As the proposal distribution is symmetric, the acceptance ratio is simply
 $$
 r = \frac{p(\tilde{v}_k^* \mid -)}{p(\tilde{v}_k \mid -)}
 $$
+
+### Implementation
+
+```{r}
+lambda_tilde <- function(t, eta, theta, w_raw, times) {
+  diffs <- t - times
+  N_k <- colSums(outer(diffs, theta, FUN = "<"))
+  
+  return(eta + sum(w_raw*N_k))
+}
+
+compensator_tilde <- function(t, eta, theta, w_raw, times) {
+  diffs <- t - times
+  min_matrix <- outer(diffs, theta, FUN = pmin)
+  inner_sums <- colSums(min_matrix)
+  return(eta*t + sum(w_raw*inner_sums))
+}
+
+logit <- function(x) {log(x/(1 - x))}
+logit_inv <- function(x) {exp(x)/(1 + exp(x))}
+
+## Gibbs proposals
+sample_gamma <- function(T_max, alpha, beta, N_T, eta, theta, w_raw, times) {
+  return(rgamma(
+    1, 
+    shape = alpha + N_T,
+    rate = beta + compensator_tilde(T_max, eta, theta, w_raw, times)
+  ))
+}
+
+sample_beta <- function(alpha, gamma, b_1, b_2) {
+  return(rgamma(1, shape = alpha + b_2, rate = gamma + b_2))
+}
+
+sample_phi <- function(theta, f_1, f_2) {
+  return(rgamma(1, shape = f_1 + length(theta), rate = f_2 + sum(theta)))
+}
+
+## M-H target distributions
+logpost_alpha <- function(log_alpha, beta, gamma, w_raw, a_1, a_2) {
+  alpha <- exp(log_alpha)
+  K <- length(w_raw)
+  w_K <- w_raw[K]
+  
+  return(
+    log(1/gamma(alpha)) 
+    + (a_1 + K - 2)*log(alpha) 
+    + alpha*(a_2 - log(beta*gamma) - log(w_K))
+    + log_alpha  #Jacobian
+  )
+}
+
+logpost_eta <- function(log_eta, gamma, theta, w_raw, nu, T_max, times) {
+  eta <- exp(log_eta)
+  
+  sum <- 0
+  for (t_i in times) {
+    sum = sum + log(lambda_tilde(t_i, eta, theta, w_raw, times[times < t_i]))
+  }
+  
+  return(
+    sum - eta*(gamma*T_max + nu)
+    + log_eta  #Jacobian
+  )
+}
+
+logpost_theta_k <- function(log_theta_k, k, gamma, eta, theta, w_raw, phi, T_max, times) {
+  theta_k <- exp(log_theta_k)
+  theta[k] <- theta_k
+  
+  sum <- 0
+  for (t_i in times) {
+    sum = sum + log(lambda_tilde(t_i, eta, theta, w_raw, times[times < t_i]))
+  }
+  
+  return(
+    sum 
+    - gamma*compensator_tilde(T_max, eta, theta, w_raw, times)
+    - phi*theta_k
+    + log_theta_k  #Jacobian
+  )
+}
+
+logpost_v_k <- function(logit_v_k, k, gamma, eta, theta, v, alpha, T_max, times) {
+  v_k <- logit_inv(logit_v_k)
+  v[k] <- v_k
+  
+  # reconstruct raw stick-break weights
+  K <- length(theta)
+  remaining <- cumprod(c(1, 1 - v))
+  w_raw <- c(v, 1)*remaining
+  w_raw[K] <- 1 - sum(w_raw[-K])
+  
+  sum <- 0
+  for (t_i in times) {
+    sum = sum + log(lambda_tilde(t_i, eta, theta, w_raw, times[times < t_i]))
+  }
+  
+  return(
+    sum 
+    - gamma*compensator_tilde(T_max, eta, theta, w_raw, times)
+    + (alpha - 1)*log(1 - v_k)
+    + log(v_k) + log(1 - v_k)  #Jacobian (logit)
+  )
+}
+
+## Function for random walk Metropolis-Hastings step
+mh_step <- function(current, logpost_fun, proposal_sd, ...) {
+  # Automatically get the name of the function passed in
+  fun_name <- deparse(substitute(logpost_fun))
+  
+  # random walk sampler (in transformed space e.g. log, logit)
+  proposal <- rnorm(1, current, proposal_sd)
+  
+  lp_prop <- logpost_fun(proposal, ...)
+  lp_curr <- logpost_fun(current, ...)
+  
+  # Check for length zero or NA
+  if (length(lp_prop) == 0 || is.na(lp_prop)) {
+    stop(paste("Error in", fun_name, ": Proposal returned length 0 or NA. Value:", lp_prop))
+  }
+  if (length(lp_curr) == 0 || is.na(lp_curr)) {
+    stop(paste("Error in", fun_name, ": Current returned length 0 or NA. Value:", lp_curr))
+  }
+  #log(acceptance ratio). the log-posterior functions will have necessary Jacobians
+  log_acc <- lp_prop - lp_curr
+  
+  if (log(runif(1)) < log_acc) {
+    return(list(value = proposal, accept = 1))
+  } else {
+    return(list(value = current, accept = 0))
+  }
+}
+
+## Code for Metropolis-within-Gibbs sampler
+run_sampler <- function(times, T_max, n_iter, init, prior_params, proposal_sds) {
+  
+  samples <- matrix(NA, n_iter, sum(lengths(init)))
+  acceptance <- matrix(NA, n_iter, 7)
+  colnames(samples) <- c("gamma", "beta", "phi", "alpha", "eta", 
+                         paste0("theta_", 1:(length(init$theta))), 
+                         paste0("v_", 1:(length(init$v))))
+  colnames(acceptance) <- c("gamma", "beta", "phi", "alpha", "eta", "theta", "v")
+  
+  # initialise
+  gamma <- init$gamma
+  beta  <- init$beta
+  phi   <- init$phi
+  alpha <- init$alpha
+  eta   <- init$eta
+  theta <- init$theta
+  v     <- init$v
+  
+  # some preliminary calculations
+  N <- length(times)
+  N_T <- times[N]
+  K <- length(init$theta)
+  
+  pb <- txtProgressBar(min = 0,      
+                       max = n_iter, 
+                       style = 3,    
+                       width = 50,   
+                       char = "=")   
+  
+  for (iter in 1:n_iter) {
+    
+    # recalculate stick-break weights at the start of each iteration
+    remaining <- cumprod(c(1, 1 - v))
+    w_raw <- c(v, 1)*remaining
+    w_raw[K] <- 1 - sum(w_raw[-K])
+    
+    # Gamma (Gibbs step)
+    gamma <- sample_gamma(T_max, alpha, beta, N_T, eta, theta, w_raw, times)
+    acceptance[iter, "gamma"] <- 1
+    
+    # Beta (Gibbs step)
+    beta <- sample_beta(alpha, gamma, prior_params$b_1, prior_params$b_2)
+    acceptance[iter, "beta"] <- 1
+    
+    # Phi (Gibbs step)
+    phi <- sample_phi(theta, prior_params$f_1, prior_params$f_2)
+    acceptance[iter, "phi"] <- 1
+    
+    # Alpha (Metropolis-within-Gibbs)
+    res <- mh_step(log(alpha), logpost_alpha, proposal_sds$alpha,
+                   beta = beta, gamma = gamma, w_raw = w_raw, 
+                   a_1 = prior_params$a_1, a_2 = prior_params$a_2)
+    alpha <- exp(res$value)
+    acceptance[iter, "alpha"] <- res$accept
+    
+    # Eta (Metropolis-within-Gibbs)
+    res <- mh_step(log(eta), logpost_eta, proposal_sds$eta,
+                   gamma = gamma, theta = theta, w_raw = w_raw, 
+                   nu = prior_params$nu, T_max = T_max, times = times)
+    eta <- exp(res$value)
+    acceptance[iter, "eta"] <- res$accept
+    
+    # Theta_k (Metropolis-within-Gibbs)
+    k_theta <- sample(1:K, 1, prob = w_raw)
+    res <- mh_step(log(theta[k_theta]), logpost_theta_k, proposal_sds$theta_k, 
+                   k = k_theta, gamma = gamma, eta = eta, theta = theta, 
+                   w_raw = w_raw, phi = phi, T_max = T_max, times = times)
+    theta[k_theta] <- exp(res$value)
+    acceptance[iter, "theta"] <- res$accept
+    
+    # v_k (Metropolis-within-Gibbs)
+    k_v <- sample(1:(K-1), 1, prob = w_raw[-K]/(sum(w_raw[-K])))
+    res <- mh_step(logit(v[k_v]), logpost_v_k, proposal_sds$v_k, k = k_v, 
+                   gamma = gamma, eta = eta, theta = theta, v = v, 
+                   alpha = alpha, T_max = T_max, times = times)
+    v[k_v] <- logit_inv(res$value)
+    acceptance[iter, "v"] <- res$accept
+    
+    
+    samples[iter, ] <- c(gamma, beta, phi, alpha, eta, theta, v)
+    setTxtProgressBar(pb, iter)
+  }
+  
+  close(pb)
+  acceptance_rates <- colMeans(acceptance)
+  
+  return(list(samples = samples, acceptance_rates = acceptance_rates))
+}
+```
+
+
+```{r}
+library(HawkesProject)
+
+
+set.seed(6)
+gp <- gp_from_dp(alpha = 2, beta = 1, g0 = rexp, k_trunc=40, rate = 2)
+example_decay <- function(x) {
+  rho <- 0.6
+  thetas <- gp$theta
+  weights <- gp$weights/sum(gp$theta*gp$weights)
+  vapply(x, function(xi) rho*sum(weights[thetas > xi]), numeric(1))
+}
+
+x_grid <- seq(0, 2.5, length.out = 500)
+y <- example_decay(x_grid)
+plot(x_grid, y, type = "s",
+     xlab = "x", ylab = "Decay",
+     main = "Example Decay Function")
+
+set.seed(456)
+simulated_process <- sim_hp(T_max = 200, lambda = 0.5, mu = example_decay)
+plot(simulated_process)
+```
+
+```{r}
+prior_params <- list(a_1 = 1, a_2 = 1, f_1 = 1, f_2 = 1, r_1 = 4, r_2 = 4, nu = 0.1)
+proposal_sds <- list(lambda0 = 0.2, rho = 1, theta_k = 2, v_k = 2)
+n_iter <- 2000
+set.seed(6789)
+init_list <- list(lambda0 = 1, rho = 0.5, theta = runif(20, 0, 5), 
+                  v = runif(19, 0, 1), alpha = 1, phi = 2)
+
+chains <- run_sampler(simulated_process$events, simulated_process$T_max, 
+                      n_iter, init_list, prior_params, proposal_sds)
+```
+
+```{r}
+stickbreak <- function(v) {
+  K <- length(v) + 1
+  
+  remaining <- cumprod(c(1, 1 - v))
+  w_raw <- c(v, 1) * remaining
+  
+  # enforce sum to 1 numerically
+  w_raw[K] <- 1 - sum(w_raw[-K])
+  
+  return(w_raw)
+}
+
+compute_w <- function(v, theta) {
+  w_raw <- stickbreak(v)
+  w <- w_raw / sum(w_raw * theta)
+  return(w)
+}
+
+kernel_eval <- function(x, theta, w, rho) {
+  sapply(x, function(xi) {
+    rho * sum(w[theta > xi])
+  })
+}
+
+samples <- chains$samples[-(1:100), ]
+K <- 20
+theta_cols <- paste0("theta", 1:K)
+v_cols <- paste0("v", 1:(K-1))
+
+x_grid <- seq(0, 5, length.out = 200)
+
+n_draws <- nrow(samples)
+kernel_draws_full <- matrix(0, nrow = n_draws, ncol = length(x_grid))
+for (i in 1:n_draws) {
+  s <- samples[i, ]
+  
+  theta <- as.numeric(s[theta_cols])
+  v <- as.numeric(s[v_cols])
+  rho <- s["rho"]
+  
+  w <- compute_w(v, theta)
+  
+  kernel_draws_full[i, ] <- kernel_eval(x_grid, theta, w, rho)
+}
+kernel_mean <- colMeans(kernel_draws_full)
+kernel_lower <- apply(kernel_draws_full, 2, quantile, 0.05)
+kernel_upper <- apply(kernel_draws_full, 2, quantile, 0.95)
+plot(x_grid, kernel_mean, type = "l", lwd = 2,
+     ylim = range(kernel_lower, kernel_upper),
+     xlab = "x", ylab = "mu(x)",
+     main = "Posterior kernel")
+
+lines(x_grid, kernel_lower, lty = 2)
+lines(x_grid, kernel_upper, lty = 2)
+
+n_plot <- 200  # subset for plotting
+draw_idx <- sample(1:n_draws, n_plot)
+
+kernel_draws <- matrix(0, nrow = n_plot, ncol = length(x_grid))
+
+for (i in seq_along(draw_idx)) {
+  s <- samples[draw_idx[i], ]
+  
+  theta <- as.numeric(s[theta_cols])
+  v <- as.numeric(s[v_cols])
+  rho <- s["rho"]
+  
+  w <- compute_w(v, theta)
+  
+  kernel_draws[i, ] <- kernel_eval(x_grid, theta, w, rho)
+}
+
+matplot(x_grid, t(kernel_draws), type = "l", lty = 1,
+        col = rgb(0,0,0,0.1),
+        xlab = "x", ylab = "mu(x)",
+        main = "Posterior kernel draws")
+lines(x_grid, example_decay(x_grid), lwd = 3, col = "red")
+
+```
 
