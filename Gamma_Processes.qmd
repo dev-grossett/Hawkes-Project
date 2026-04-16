@@ -578,12 +578,12 @@ source("./R/univariate_hawkes_npb.R", echo = TRUE)
 library(HawkesProject)
 
 # generate a random hawkes kernel from the DP construction above
-set.seed(6) # reproducibility
-gp <- gp_from_dp(alpha = 2, beta = 1, g0 = rexp, k_trunc=40, rate = 2)
+set.seed(7) # reproducibility
+dp <- dp_stickbreak(alpha = 2, g0 = rexp, k_trunc=40, rate = 2)
 example_decay <- function(x) {
   rho <- 0.6
-  thetas <- gp$theta
-  weights <- gp$weights/sum(gp$theta*gp$weights)
+  thetas <- dp$theta
+  weights <- dp$weights/sum(dp$theta*dp$weights)
   vapply(x, function(xi) rho*sum(weights[thetas > xi]), numeric(1))
 }
 
@@ -609,7 +609,8 @@ set.seed(6789)
 init_list <- list(lambda0 = 1, rho = 0.5, theta = runif(20, 0, 5), 
                   v = runif(19, 0, 1), alpha = 1, phi = 2)
 chains <- run_sampler(simulated_process$events, simulated_process$T_max, 
-                      n_iter, init_list, prior_params, proposal_sds)
+                      n_iter, init_list, prior_params, proposal_sds, 
+                      progress = FALSE)
 ```
 
 Visualising the posterior draws of the excitation function
