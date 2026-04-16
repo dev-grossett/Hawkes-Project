@@ -111,34 +111,6 @@ sample_phi <- function(theta, f_1, f_2) {
   return(rgamma(1, shape = f_1 + length(theta), rate = f_2 + sum(theta)))
 }
 
-## Function for random walk Metropolis-Hastings step
-mh_step <- function(current, logpost_fun, proposal_sd, ...) {
-  # Automatically get the name of the function passed in
-  fun_name <- deparse(substitute(logpost_fun))
-  
-  # random walk sampler (in transformed space e.g. log, logit)
-  proposal <- rnorm(1, current, proposal_sd)
-  
-  lp_prop <- logpost_fun(proposal, ...)
-  lp_curr <- logpost_fun(current, ...)
-  
-  # Check for length zero or NA
-  if (length(lp_prop) == 0 || is.na(lp_prop)) {
-    stop(paste("Error in", fun_name, ": Proposal returned length 0 or NA. Value:", lp_prop))
-  }
-  if (length(lp_curr) == 0 || is.na(lp_curr)) {
-    stop(paste("Error in", fun_name, ": Current returned length 0 or NA. Value:", lp_curr))
-  }
-  #log(acceptance ratio). the log-posterior functions will have necessary Jacobians
-  log_acc <- lp_prop - lp_curr
-  
-  if (log(runif(1)) < log_acc) {
-    return(list(value = proposal, accept = 1))
-  } else {
-    return(list(value = current, accept = 0))
-  }
-}
-
 ################################################################################
 # Metropolis Hastings step function
 ################################################################################
@@ -170,7 +142,8 @@ mh_step <- function(current, logpost_fun, proposal_sd, ...) {
 }
 
 ## Code for Metropolis-within-Gibbs sampler
-run_sampler <- function(times, T_max, n_iter, init, prior_params, proposal_sds) {
+run_sampler <- function(times, T_max, n_iter, init, 
+                        prior_params, proposal_sds, progress = TRUE) {
   
   samples <- matrix(NA, n_iter, sum(lengths(init)))
   acceptance <- matrix(NA, n_iter, 6)
@@ -200,11 +173,13 @@ run_sampler <- function(times, T_max, n_iter, init, prior_params, proposal_sds) 
   # Scaled to make mu(t)/rho a probability density
   w <- w_raw/sum(w_raw*theta)
   
-  pb <- txtProgressBar(min = 0,      
-                       max = n_iter, 
-                       style = 3,    
-                       width = 50,   
-                       char = "=")   
+  if (progress) {
+    pb <- txtProgressBar(min = 0,      
+                         max = n_iter, 
+                         style = 3,    
+                         width = 50,   
+                         char = "=")   
+  }
   
   for (iter in 1:n_iter) {
     
@@ -256,10 +231,15 @@ run_sampler <- function(times, T_max, n_iter, init, prior_params, proposal_sds) 
     acceptance[iter, "phi"] <- 1
     
     samples[iter, ] <- c(lambda0, rho, theta, v, alpha, phi)
-    setTxtProgressBar(pb, iter)
+    if (progress) {
+      setTxtProgressBar(pb, iter)
+    }
   }
   
-  close(pb)
+  if (progress) {
+    close(pb)
+  }
+  
   acceptance_rates <- colMeans(acceptance)
   
   return(list(samples = samples, acceptance_rates = acceptance_rates))

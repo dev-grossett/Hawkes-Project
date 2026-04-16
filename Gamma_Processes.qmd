@@ -290,7 +290,9 @@ for (j in 1:4) {
 }
 ```
 
-## Hawkes Process with Gamaa Process Priors (GaPP)
+## Hawkes Process with Dirichlet/Gamma Process Priors
+
+### Univariate Hawkes Process
 
 For a univariate Hawkes Process, the conditional intensity function is:
 $$
@@ -299,89 +301,104 @@ $$
 
 We will consider a GaPP for $\mu(\cdot)$ constructed so that any realisation of
 it is a non-increasing function (a similar constraint to the common exponential 
-and power decay Hawkes kernels). 
-
-We will define a non-parametric form of $\mu(\cdot)$ using a GaPP:
+and power decay Hawkes kernels). For convenience, we will parameterise the 
+excitation function as 
 $$
-\mu(t) = \int_t^\infty G({\rm d}u) = \gamma \sum_{k=1}^K\tilde{w}_k I(\theta_k > t)
+\mu(t) = \rho g(t)
 $$
+where $g(t)$ is a probability density function on $\mathbb{R}^+$. This 
+parameterisation separates the amount of excitation, determined by the branching
+ratio $\rho=\int_0^\infty \mu(t){\rm d}t$, from the shape of the excitation 
+function with time, determined by $g(t)$. We will make the restriction 
+$\rho \in (0,1)$ by choice of priors and proposals, to ensure a well behaved 
+process (no exploding of events off to infinity).
 
-Following 
-@Arnold2023_BayesNonparametricBathtub where they reparameterise the background 
-intensity (or in their case, the baseline hazard rate) as 
-$\lambda_0 = \gamma \eta$, the conditional intesnity function of the Hawkes 
-Process can be written as
+To construct g(t), we start with a truncated Dirichlet Process
 $$
 \begin{aligned}
-\lambda^*(t \mid \gamma, \eta, \boldsymbol{\theta}, \mathbf{v}) 
-  &= \gamma \eta + \gamma \sum_{t_i<t}\sum_{k=1}^K\tilde{w}_k I(\theta_k > t-t_i) \\
-  &= \gamma \tilde{\lambda}^*(t \mid \eta, \boldsymbol{\theta}, \mathbf{v})
+\theta_k \mid H_0 &\stackrel{iid}{\sim} H_0 \qquad k=1,2,\ldots,K \\
+v_k \mid \alpha &\stackrel{iid}{\sim} \mathrm{Be}(1,\alpha) \qquad k=1,2,\ldots,K-1 \\
+\tilde{w}_k &= v_k \prod_{\ell < k} (1-v_\ell) \qquad k=1,2,\ldots,K-1 \\
+\tilde{w}_K &= 1 - \sum_{k=1}^{K-1}\tilde{w}_k = \prod_{\ell=1}^{K-1}(1-v_\ell) \\
+G({\rm d}u) &=  \sum_{k=1}^K \tilde{w}_k \delta_{\theta_k}({\rm d}u)
 \end{aligned}
-$$ {#eq-hp_intensity_gapp}
-where 
+$$ {#eq-dp_stickbreak_truncate}
+We can construct a non-increasing function with the tail mass of the DP measure,
+$\int_t^\infty G({\rm d}u) = \sum_{k=1}^K \tilde{w}_k I(\theta_k > t)$. Taking 
+the integral over $(0,\infty)$:
 $$
-\tilde{\lambda}^*(t \mid \eta, \boldsymbol{\theta}, \mathbf{v})
-  = \eta + \sum_{t_i<t}\sum_{k=1}^K\tilde{w}_k I(\theta_k > t-t_i)
+\begin{aligned}
+\int_0^\infty \left( \sum_{k=1}^K \tilde{w}_k I(\theta_k > t) \right) {\rm d}t 
+  &= \sum_{k=1}^K \tilde{w}_k \int_0^\infty I(t < \theta_k) {\rm d}t \\
+  &= \sum_{k=1}^K \tilde{w}_k \theta_k
+\end{aligned}
 $$
+Thereforce to create $g(t)$, we define new weights
+$$
+w_k = \frac{\tilde{w}_k}{\sum_j \tilde{w}_j \theta_j}
+$$
+and construct our normalised excitation function as
+$$
+g(t) = \sum_{k=1}^K w_k I(\theta_k > t)
+$$
+This has the desired normalisation condition, as well as being non-increasing in $t$.
+Combined with the background intensity, $\lambda_0$, and the branching ratio, 
+$\rho$, the Hawkes conditional intensity function is specified as
+$$
+\lambda^*(t \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v})) 
+  = \lambda_0 + \rho \sum_{t_i<t} \sum_{k=1}^K w_k I(\theta_k > t - t_i)
+$$ {#eq-hp_intensity_dpp}
 
-For additional interpretability, we can swap the summation order and note that 
-in @eq-hp_intensity_gapp, $\sum_{t_i<t}I(t-t_i < \theta_k)$ is simply counting 
-the number of events before time $t$ that occured within the last $\theta_k$ 
-time units. Therefore, the Gamma Process Prior for the Hawkes Process has the 
-interpretation that each event that occured within the last $\theta_k$ time 
-units of a given time $t$ contributes $\gamma\tilde{w}_k$ to the conditional 
-intensity, and this effect stacks for all atoms $\theta_k$ drawn from the 
-Gamma Process Prior. Based on this interpretation, we can define a counting 
-process from that term of the conditional intensity
+We can swap the summation order in @eq-hp_intensity_dpp and note that 
+$\sum_{t_i<t}I(t-t_i < \theta_k)$ is simply counting the number of events before
+time $t$ that occured within the last $\theta_k$ time units. Therefore, this 
+type of Prior for the Hawkes Process has the interpretation that each event that
+occured within the last $\theta_k$ time units of a given time $t$ contributes
+$\rho w_k$ to the conditional intensity, and this effect stacks for all 
+atoms $\theta_k$ drawn from the Dirichlet Process Prior. Based on this
+interpretation, we can define a counting process from that term of the 
+conditional intensity
 $$
-N_k(t_i) = \sum_{j=1}^{i-1}I(t_i-t_j < \theta_k) = \#\{j<i:t_i-t_j<\theta_k\}
+N_k^*(t_i \mid \boldsymbol{\theta}) = \sum_{j=1}^{i-1}I(t_i-t_j < \theta_k) = \#\{j<i:t_i-t_j<\theta_k\}
 $$
 
 Before we calculate the compensator of a Hawkes Process of this form, we note
 that:
 $$
 \begin{aligned}
-\int_0^t \mu(u){\rm d}u &= \int_0^t \gamma \sum_{k=1}^K\tilde{w}_k I(u < \theta_k) {\rm d}u \\
-&= \gamma \sum_{k=1}^K \tilde{w}_k \int_0^t I(u < \theta_k) {\rm d}u \\
-&= \gamma \sum_{k=1}^K \int_0^{\mathrm{min}\{t,\theta_k\}} {\rm d}u \\
-&= \gamma \sum_{k=1}^K \tilde{w}_k \mathrm{min}\{t,\theta_k\}
+\int_0^t \mu(u){\rm d}u &= \int_0^t \rho \sum_{k=1}^K w_k I(u < \theta_k) {\rm d}u \\
+&= \rho \sum_{k=1}^K w_k \int_0^t I(u < \theta_k) {\rm d}u \\
+&= \rho \sum_{k=1}^K \int_0^{\mathrm{min}\{t,\theta_k\}} {\rm d}u \\
+&= \rho \sum_{k=1}^K w_k \mathrm{min}\{t,\theta_k\}
 \end{aligned}
 $$
 
 Therefore, as the compensator of a Hawkes Process is 
 $\Lambda^*(t) = \int_0^t \lambda^*(u) {\rm d}u = \lambda_0 t + \sum_{i=1}^{N_t}  M(t - t_i)$,
 where $M(t) = \int_0^t\mu(u) {\rm d}u$, we can write the compensator of a 
-Hawkes Process with a truncated Gamma Process Prior as: 
+Hawkes Process with this form of prior as: 
 $$
-\begin{aligned}
-\Lambda^*(T \mid \gamma, \eta, \boldsymbol{\theta}, \mathbf{v}) 
-  &= \gamma \eta T + \gamma \sum_{i=1}^{N_T}\sum_{k=1}^K \tilde{w}_k \min\{T-t_i,\theta_k\} \\
-  &= \gamma \eta T + \gamma \sum_{k=1}^K \tilde{w}_k \sum_{i=1}^{N_T} \min\{T-t_i,\theta_k\} \\
-  &= \gamma \tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})
-\end{aligned}
+\Lambda^*(T \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v})) 
+  = \lambda_0 T + \rho \sum_{i=1}^{N_T}\sum_{k=1}^K w_k \min\{T-t_i,\theta_k\}
 $$ {#eq-hp_compensator_gapp}
-where 
-$$
-\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})
-  = \eta T +  \sum_{k=1}^K \tilde{w}_k \sum_{i=1}^{N_T} \min\{T-t_i,\theta_k\}
-$$
-
 The likelihood for a Hawkes Process observed over the period $[0,T]$ with a
 Gamma Process Prior for the excitation function is then
 $$
 \begin{aligned}
-L &= \left[ \prod_{i=1}^{N_T} \gamma\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v}) \right] 
-    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})} \\
-  &= \left[ \prod_{i=1}^{N_T} \gamma\left(\eta + \sum_{k=1}^K\tilde{w}_k N_k(t_i)\right)\right] \\
-  &\quad\times\exp\left\{ -\gamma \left( \eta T +  \sum_{k=1}^K \tilde{w}_k \sum_{i=1}^{N_T} \min\{T-t_i,\theta_k\} \right) \right\} \\
+L &= \left[ \prod_{i=1}^{N_T} \lambda^*(t_i \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v})) \right] 
+    e^{\Lambda^*(T \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v}))} \\
+  &= \left[ \prod_{i=1}^{N_T} \left(\lambda_0 + \rho\sum_{k=1}^K w_k N_k^*(t_i \mid \boldsymbol{\theta})\right)\right] \\
+  &\quad\times\exp\left\{\lambda_0 T +  \rho\sum_{k=1}^K w_k \sum_{i=1}^{N_T} \min\{T-t_i,\theta_k\}\right\} \\
 \end{aligned}
 $$ {#eq-hp_likelihood_gapp}
 with log-likelihood
 $$
 \begin{aligned}
 \ell
-  &= N_T\log\gamma + \sum_{i=1}^{N_T} \log \left(\eta + \sum_{k=1}^K\tilde{w}_k N_k(t_i)\right) \\
-  &\quad -\gamma \eta T + \gamma\sum_{k=1}^K \tilde{w}_k \sum_{i=1}^{N_T} \min\{T-t_i,\theta_k\} \\
+  &= \sum_{i=1}^{N_T} \log \lambda^*(t_i \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v}))
+    - \Lambda^*(T \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v}))\\
+  &= \sum_{i=1}^{N_T} \log \left(\lambda_0 + \rho\sum_{k=1}^K w_k N_k(t_i \mid \boldsymbol{\theta})\right) \\
+  &\quad -\lambda_0 T + \rho\sum_{k=1}^K w_k \sum_{i=1}^{N_T} \min\{T-t_i,\theta_k\} \\
 \end{aligned}
 $$ {#eq-hp_loglikelihood_gapp}
 
@@ -391,58 +408,143 @@ Our full model with chosen priors is
 
 $$
 \begin{aligned}
-t_i \mid \gamma, \eta, \boldsymbol{\theta}, \mathbf{v} 
-  &\stackrel{\rm iid}{\sim} \mathrm{HP}(\gamma \tilde{\lambda}^*(\cdot \mid \eta, \boldsymbol{\theta}, \mathbf{v}))
+t_i \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{v} 
+  &\stackrel{\rm iid}{\sim} \mathrm{HP}(\lambda^*(\cdot \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v})))
   \qquad i=1,\ldots,N_T \\
-  \theta_k \mid H_0, \phi &\stackrel{\rm iid}{\sim} \mathrm{Exp}(\phi) \qquad k=1,\ldots,K \\
+  \theta_k \mid H_0(\cdot \mid \phi) &\stackrel{\rm iid}{\sim} \mathrm{Exp}(\phi) \qquad k=1,\ldots,K \\
   v_k \mid \alpha &\stackrel{\rm iid}{\sim} \mathrm{Beta}(1,\alpha) \qquad k=1,\ldots,K-1 \\
-  \gamma \mid \alpha, \beta &\sim \mathrm{Ga}(\alpha, \beta) \\
-  \eta \mid \nu &\sim \mathrm{Exp}(\nu) \\
+  \lambda_0 \mid \nu &\sim \mathrm{Exp}(\nu) \\
+  \rho \mid r_1, r_2 &\sim \mathrm{Beta}(r_1, r_2) \\
   \alpha \mid a_1, a_2 &\sim \mathrm{Ga}(a_1, a_2) \\
-  \beta \mid b_1, b_2 &\sim \mathrm{Ga}(b_1, b_2) \\
   \phi \mid f_1, f_2 &\sim \mathrm{Ga}(f_1, f_2) \\
 \end{aligned}
 $$
-The following three parameters have simple Gibbs updates due to conjugacy:
+and has full conditional posterior distributions
 
-#### $\gamma$:
+#### $\lambda_0$:
 
 $$
 \begin{aligned}
-p(\gamma \mid -) 
-  &\propto p(\mathbf{t} \mid -)p(\gamma \mid \alpha,\beta) \\
-  &\propto \prod_{i=1}^{N_T} \left[\gamma \tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right]
-    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})}
-    \gamma^{\alpha-1}e^{-\beta\gamma} \\
-  &\propto \gamma^{N_T}e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})} 
-    \gamma^{\alpha-1}e^{-\beta\gamma} \\ 
-  &\propto \gamma^{(\alpha + N_T)-1}e^{-\gamma(\beta + \tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v}))}
+p(\lambda_0 \mid -) 
+  &\propto p(\mathbf{t} \mid -)p(\lambda_0 \mid \nu) \\
+  &\propto \left[ \prod_{i=1}^{N_T} \lambda^*(t_i \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v})) \right]
+    e^{-\Lambda^*(T \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v}))} \\
+  &\qquad \times e^{-\nu \lambda_0} \\
+  &\propto \left[ \prod_{i=1}^{N_T} \lambda^*(t_i \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v})) \right] 
+    e^{-\lambda_0(T + \nu)}
+\end{aligned}
+$$
+
+We will use M-H updates of $\tilde{\lambda}_0 = \log\lambda_0$ with Normal proposal: 
+$\mathrm{N}(\tilde{\lambda}_0,\sigma_{\lambda_0}^2)$. This transformation has Jacobian 
+$\left|\frac{{\rm d}\lambda_0}{{\rm}d\tilde{\lambda}_0}\right| = \lambda_0$, and therefore
+$$
+\begin{aligned}
+p(\tilde{\lambda}_0 \mid -) 
+  &= p(\lambda_0 = e^{\tilde{\lambda}_0} \mid -)\left|\frac{{\rm d}\lambda_0}{{\rm}d\tilde{\lambda}_0}\right| \\
+  &= p(\lambda_0 = e^{\tilde{\lambda_0}} \mid -) \lambda_0 \\
+\log p(\tilde{\lambda}_0 \mid -) &= \log p(\lambda_0 = e^{\tilde{\lambda}_0} \mid -) + \log \lambda_0
+\end{aligned}
+$$
+
+As the proposal distribution is symmetric about $\tilde{\lambda_0}$, the 
+acceptance ratio is simply 
+$$
+r = \frac{p(\tilde{\lambda}_0^* \mid -)}{p(\tilde{\lambda}_0 \mid -)}
+$$
+
+#### $\rho$:
+
+$$
+\begin{aligned}
+p(\rho \mid -) 
+  &\propto p(\mathbf{t} \mid -)p(\rho \mid r_1, r_2) \\
+  &\propto \left[ \prod_{i=1}^{N_T} \lambda^*(t_i \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v})) \right]
+    e^{-\Lambda^*(T \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v}))} \\
+  &\qquad \times \rho^{r_1 - 1} (1-\rho)^{r_2-1}
+\end{aligned}
+$$
+
+We will use M-H updates of $\tilde{\rho} = \text{logit}(\rho)$ with Normal proposal: 
+$\mathrm{N}(\tilde{\rho},\sigma_\rho^2)$. This transformation has Jacobian 
+$\left|\frac{{\rm d}\rho}{{\rm}d\tilde{\rho}}\right| = \rho(1-\rho)$, and therefore
+$$
+\begin{aligned}
+p(\tilde{\rho} \mid -) 
+  &= p(\rho = \text{logit}^{-1}(\tilde{\rho}) \mid -)\left|\frac{{\rm d}\rho}{{\rm}d\tilde{\rho}}\right| \\
+  &= p(\rho = \text{logit}^{-1}(\tilde{\rho}) \mid -) \rho(1-\rho) \\
+\log p(\tilde{\rho} \mid -) &= \log p(\rho = \text{logit}^{-1}(\tilde{\rho}) \mid -) + \log\rho + \log(1-\rho)
+\end{aligned}
+$$
+
+As the proposal distribution is symmetric, the acceptance ratio is simply 
+$$
+r = \frac{p(\tilde{\rho}^* \mid -)}{p(\tilde{\rho} \mid -)}
+$$
+
+#### $\theta_k$:
+
+$$
+\begin{aligned}
+p(\theta_k \mid -) 
+  &\propto p(\mathbf{t} \mid -) p(\theta_k \mid \phi) \\
+  &\propto \left[ \prod_{i=1}^{N_T} \lambda^*(t_i \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v})) \right]
+    e^{-\Lambda^*(T \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v}))} \\
+  &\qquad \times e^{-\phi\theta_k} \\
+\end{aligned}
+$$
+
+The sampling scheme for this comes from @Arnold2020_BayesNonparametricBathtub, 
+where mixing is assisted by selecting an atom at random according to the size of
+the unscaled weights $\tilde{w}$. For each pass of the sampler we update 
+$k_\text{sim} \leq K$ randomly selected atoms (selected with replacement). This 
+ensures that the most influential atoms are updated with greatest frequency.
+
+Of the selected atoms, we update $\tilde{\theta}_k = \log\theta_k$ with Normal
+proposal: $\mathrm{N}(\tilde{\theta}_k,\sigma_\theta^2)$.
+
+As the proposal distribution is symmetric, the acceptance ratio is simply 
+$$
+r = \frac{p(\tilde{\theta}_k^* \mid -)}{p(\tilde{\theta}_k \mid -)}
+$$
+
+#### $v_k$:
+
+$$
+\begin{aligned}
+p(v_k \mid -) 
+  &\propto p(\mathbf{t} \mid -) p(v_k \mid \alpha) \\
+  &\propto \left[ \prod_{i=1}^{N_T} \lambda^*(t_i \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v})) \right]
+    e^{-\Lambda^*(T \mid \lambda_0, \rho, \boldsymbol{\theta}, \mathbf{w}(\mathbf{v}))} \\
+  &\qquad \times (1-v_k)^{\alpha-1} \\
+\end{aligned}
+$$
+
+As we did for $\rho$, the M-H update will be of
+$\tilde{v}_k = \text{logit}(v_k)$ with Normal proposal: 
+$\mathrm{N}(\tilde{v}_k,\sigma_v^2)$. 
+
+As the proposal distribution is symmetric, the acceptance ratio is simply 
+$$
+r = \frac{p(\tilde{v}_k^* \mid -)}{p(\tilde{v}_k \mid -)}
+$$
+
+#### $\alpha$:
+
+$$
+\begin{aligned}
+p(\alpha \mid -) 
+  &\propto p(\mathbf{v} \mid \alpha)p(\alpha) \\
+  &\propto \left[ \prod_{k=1}^{K-1} \alpha (1-v_k)^{\alpha-1} \right] \alpha^{a_1 - 1}e^{-a_2\alpha} \\
+  &\propto \alpha^{a_1 + K - 2} \tilde{w}_K^\alpha e^{-a_2\alpha} \\
+  &\propto \alpha^{(a_1 + K - 1) - 1} e^{-\alpha(a_2 - \log\tilde{w}_K)} \\
 \end{aligned}
 $$
 
 Therefore the Gibbs update is 
 $$
-\gamma \mid - 
-  \sim \mathrm{Ga}\left(\alpha + N_T,\beta + \tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right)
-$$
-
-
-#### $\beta$:
-
-$$
-\begin{aligned}
-p(\beta \mid -) 
-  &\propto p(\gamma \mid \alpha,\beta)p(\beta) \\
-  &\propto \beta^{\alpha}e^{-\beta\gamma} \beta^{b_1-1}e^{-b_2\beta} \\
-  &\propto \beta^{(\alpha + b_1)-1}e^{-\beta(\gamma + b_2)}
-\end{aligned}
-$$
-
-
-Therefore the Gibbs update is 
-$$
-\beta \mid - 
-  \sim \mathrm{Ga}\left( \alpha + b_1,\gamma + b_2 \right)
+\alpha \mid - 
+  \sim \mathrm{Ga}\left(a_1+K-1, a_2-\log\tilde{w}_K\right)
 $$
 
 #### $\phi$:
@@ -450,13 +552,12 @@ $$
 $$
 \begin{aligned}
 p(\phi \mid -) 
-  &\propto p(\boldsymbol{\theta} \mid \phi)p(\phi) \\
+  &\propto p(\boldsymbol{\theta} \mid \phi)p(\phi \mid f_1 f_2) \\
   &\propto \left[\prod_{k=1}^K \phi e^{-\phi \theta_k}\right]\phi^{f_1-1}e^{-\phi f_2} \\
   &\propto \phi^K e^{-\phi\sum_{k=1}^K\theta_k}\phi^{f_1-1}e^{-\phi f_2} \\
   &\propto \phi^{(f_1 + K)-1}e^{-\phi\left(f_2 + \sum_{k=1}^K\theta_k\right)}
 \end{aligned}
 $$
-
 
 Therefore the Gibbs update is 
 $$
@@ -464,347 +565,20 @@ $$
   \sim \mathrm{Ga}\left( f_1 + K, f_2 + \sum_{k=1}^K\theta_k \right)
 $$
 
-The remaining parameters require Metropolis-Hastings updates.
+### Demonstration
 
-$$$$ $\eta$:
-
-$$
-\begin{aligned}
-p(\eta \mid -) 
-  &\propto p(\mathbf{t} \mid -)p(\eta) \\
-  &\propto \prod_{i=1}^{N_T} \left[\gamma \tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right]
-    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})}
-   e^{-\nu \eta} \\
-  &\propto \prod_{i=1}^{N_T} \left[\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right] 
-    e^{-\gamma \eta T - \nu\eta}
-\end{aligned}
-$$
-
-M-H update of $\tilde{\eta} = \log\eta$ with Normal proposal: 
-$\mathrm{N}(\tilde{\eta},\sigma_\tilde{\eta}^2)$. This transformation has Jacobian 
-$\left|\frac{{\rm d}\eta}{{\rm}d\tilde{\eta}}\right| = \eta$, and therefore
-$$
-\begin{aligned}
-p(\tilde{\eta} \mid -) 
-  &= p(\eta = e^{\tilde{\eta}} \mid -)\left|\frac{{\rm d}\eta}{{\rm}d\tilde{\eta}}\right| \\
-  &= p(\eta = e^{\tilde{\eta}} \mid -) \eta \\
-\log p(\tilde{\eta} \mid -) &= \log p(\eta = e^{\tilde{\eta}} \mid -) + \log \eta
-\end{aligned}
-$$
-
-As the proposal distribution is symmetric, the acceptance ratio is simply 
-$$
-r = \frac{p(\tilde{\eta}^* \mid -)}{p(\tilde{\eta} \mid -)}
-$$
-
-$$$$ $\alpha$:
-
-$$
-\begin{aligned}
-p(\alpha \mid -) 
-  &\propto p(\gamma \mid \alpha, \beta)p(\mathbf{v} \mid \alpha)p(\alpha) \\
-  &\propto \frac{\beta^\alpha}{\Gamma(\alpha)} \gamma^{\alpha-1}
-    \left[ \prod_{k=1}^{K-1} \alpha (1-v_k)^{\alpha-1} \right] \alpha^{a_1 - 1}e^{-a_2\alpha} \\
-  &\propto \frac{1}{\Gamma(\alpha)} \alpha^{a_1 + K - 2} (\beta\gamma)^\alpha \tilde{w}_K^\alpha e^{-a_2\alpha} \\
-  &\propto \frac{1}{\Gamma(\alpha)} \alpha^{a_1 + K - 2} e^{-\alpha(-\log{\beta\gamma} - \log\tilde{w}_K + a_2)} \\
-\end{aligned}
-$$
-
-As above, the M-H update is of $\tilde{\alpha} = \log\alpha$ with Normal proposal: 
-$\mathrm{N}(\tilde{\alpha},\sigma_\tilde{\alpha}^2)$. 
-
-As the proposal distribution is symmetric, the acceptance ratio is simply 
-$$
-r = \frac{p(\tilde{\alpha}^* \mid -)}{p(\tilde{\alpha} \mid -)}
-$$
-
-$$$$ $\theta_k$:
-
-$$
-\begin{aligned}
-p(\theta_k \mid -) 
-  &\propto p(\mathbf{t} \mid -) p(\theta_k \mid \phi) \\
-  &\propto \left[\prod_{i=1}^{N_t}\gamma\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right] 
-    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})} e^{-\phi\theta_k} \\
-  &\propto \left[\prod_{i=1}^{N_t}\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right] 
-    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})} e^{-\phi\theta_k} \\
-\end{aligned}
-$$
-
-The sampling scheme for this comes from @Arnold2020_BayesNonparametricBathtub, 
-where mixing is assisted by selecting an atom at random from the unscaled 
-weights $\tilde{w}$. For each pass of the sampler we update $k_\text{sim} \leq K$
-randomly selected atoms (selected with replacement). This ensures that the most
-influential support points are updated with greatest frequency.
-
-Of the selected atoms, we update $\tilde{\theta}_k = \log\theta_k$ with Normal
-proposal: $\mathrm{N}(\tilde{\theta}_k,\sigma_\tilde{\theta}^2)$.
-
-As the proposal distribution is symmetric, the acceptance ratio is simply 
-$$
-r = \frac{p(\tilde{\theta}_k^* \mid -)}{p(\tilde{\theta}_k \mid -)}
-$$
-
-$$$$ $v_k$:
-
-$$
-\begin{aligned}
-p(v_k \mid -) 
-  &\propto p(\mathbf{t} \mid -) p(v_k \mid \alpha) \\
-  &\propto \left[\prod_{i=1}^{N_t}\gamma\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right] 
-    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})}  (1-v_k)^{\alpha-1} \\
-  &\propto \left[\prod_{i=1}^{N_t}\tilde{\lambda}^*(t_i \mid \eta, \boldsymbol{\theta}, \mathbf{v})\right] 
-    e^{-\gamma\tilde{\Lambda}^*(T \mid \eta, \boldsymbol{\theta}, \mathbf{v})} (1-v_k)^{\alpha-1} \\
-\end{aligned}
-$$
-
-M-H update of $\tilde{v}_k = \text{logit}(\eta)$ with Normal proposal: 
-$\mathrm{N}(\tilde{v}_k,\sigma_\tilde{v}^2)$. This transformation has Jacobian 
-$\left|\frac{{\rm d}v_k}{{\rm}d\tilde{v}_k}\right| = v_k(1-v_k)$, and therefore
-$$
-\begin{aligned}
-p(\tilde{v}_k \mid -) 
-  &= p(v_k = \text{logit}^{-1}(\tilde{v}_k) \mid -)\left|\frac{{\rm d}v_k}{{\rm}d\tilde{v}_k}\right| \\
-  &= p(v_k = \text{logit}^{-1}(\tilde{v}_k) \mid -) v_k(1-v_k) \\
-\log p(\tilde{v}_k \mid -) &= \log p(v_k = \text{logit}^{-1}(\tilde{v}_k) \mid -) + \log v_k + \log(1-v_k)
-\end{aligned}
-$$
-
-As the proposal distribution is symmetric, the acceptance ratio is simply 
-$$
-r = \frac{p(\tilde{v}_k^* \mid -)}{p(\tilde{v}_k \mid -)}
-$$
-
-### Implementation
+I have put all the code for posterior functions, Gibbs and MH updates, and a 
+parent function that coordinates sampling for a single MCMC chain into 
+`./R/univariate_hawkes_npb.R` 
 
 ```{r}
-lambda_tilde <- function(t, eta, theta, w_raw, times) {
-  diffs <- t - times
-  N_k <- colSums(outer(diffs, theta, FUN = "<"))
-  
-  return(eta + sum(w_raw*N_k))
-}
+source("./R/univariate_hawkes_npb.R", echo = TRUE)
 
-compensator_tilde <- function(t, eta, theta, w_raw, times) {
-  diffs <- t - times
-  min_matrix <- outer(diffs, theta, FUN = pmin)
-  inner_sums <- colSums(min_matrix)
-  return(eta*t + sum(w_raw*inner_sums))
-}
-
-logit <- function(x) {log(x/(1 - x))}
-logit_inv <- function(x) {exp(x)/(1 + exp(x))}
-
-## Gibbs proposals
-sample_gamma <- function(T_max, alpha, beta, N_T, eta, theta, w_raw, times) {
-  return(rgamma(
-    1, 
-    shape = alpha + N_T,
-    rate = beta + compensator_tilde(T_max, eta, theta, w_raw, times)
-  ))
-}
-
-sample_beta <- function(alpha, gamma, b_1, b_2) {
-  return(rgamma(1, shape = alpha + b_2, rate = gamma + b_2))
-}
-
-sample_phi <- function(theta, f_1, f_2) {
-  return(rgamma(1, shape = f_1 + length(theta), rate = f_2 + sum(theta)))
-}
-
-## M-H target distributions
-logpost_alpha <- function(log_alpha, beta, gamma, w_raw, a_1, a_2) {
-  alpha <- exp(log_alpha)
-  K <- length(w_raw)
-  w_K <- w_raw[K]
-  
-  return(
-    log(1/gamma(alpha)) 
-    + (a_1 + K - 2)*log(alpha) 
-    + alpha*(a_2 - log(beta*gamma) - log(w_K))
-    + log_alpha  #Jacobian
-  )
-}
-
-logpost_eta <- function(log_eta, gamma, theta, w_raw, nu, T_max, times) {
-  eta <- exp(log_eta)
-  
-  sum <- 0
-  for (t_i in times) {
-    sum = sum + log(lambda_tilde(t_i, eta, theta, w_raw, times[times < t_i]))
-  }
-  
-  return(
-    sum - eta*(gamma*T_max + nu)
-    + log_eta  #Jacobian
-  )
-}
-
-logpost_theta_k <- function(log_theta_k, k, gamma, eta, theta, w_raw, phi, T_max, times) {
-  theta_k <- exp(log_theta_k)
-  theta[k] <- theta_k
-  
-  sum <- 0
-  for (t_i in times) {
-    sum = sum + log(lambda_tilde(t_i, eta, theta, w_raw, times[times < t_i]))
-  }
-  
-  return(
-    sum 
-    - gamma*compensator_tilde(T_max, eta, theta, w_raw, times)
-    - phi*theta_k
-    + log_theta_k  #Jacobian
-  )
-}
-
-logpost_v_k <- function(logit_v_k, k, gamma, eta, theta, v, alpha, T_max, times) {
-  v_k <- logit_inv(logit_v_k)
-  v[k] <- v_k
-  
-  # reconstruct raw stick-break weights
-  K <- length(theta)
-  remaining <- cumprod(c(1, 1 - v))
-  w_raw <- c(v, 1)*remaining
-  w_raw[K] <- 1 - sum(w_raw[-K])
-  
-  sum <- 0
-  for (t_i in times) {
-    sum = sum + log(lambda_tilde(t_i, eta, theta, w_raw, times[times < t_i]))
-  }
-  
-  return(
-    sum 
-    - gamma*compensator_tilde(T_max, eta, theta, w_raw, times)
-    + (alpha - 1)*log(1 - v_k)
-    + log(v_k) + log(1 - v_k)  #Jacobian (logit)
-  )
-}
-
-## Function for random walk Metropolis-Hastings step
-mh_step <- function(current, logpost_fun, proposal_sd, ...) {
-  # Automatically get the name of the function passed in
-  fun_name <- deparse(substitute(logpost_fun))
-  
-  # random walk sampler (in transformed space e.g. log, logit)
-  proposal <- rnorm(1, current, proposal_sd)
-  
-  lp_prop <- logpost_fun(proposal, ...)
-  lp_curr <- logpost_fun(current, ...)
-  
-  # Check for length zero or NA
-  if (length(lp_prop) == 0 || is.na(lp_prop)) {
-    stop(paste("Error in", fun_name, ": Proposal returned length 0 or NA. Value:", lp_prop))
-  }
-  if (length(lp_curr) == 0 || is.na(lp_curr)) {
-    stop(paste("Error in", fun_name, ": Current returned length 0 or NA. Value:", lp_curr))
-  }
-  #log(acceptance ratio). the log-posterior functions will have necessary Jacobians
-  log_acc <- lp_prop - lp_curr
-  
-  if (log(runif(1)) < log_acc) {
-    return(list(value = proposal, accept = 1))
-  } else {
-    return(list(value = current, accept = 0))
-  }
-}
-
-## Code for Metropolis-within-Gibbs sampler
-run_sampler <- function(times, T_max, n_iter, init, prior_params, proposal_sds) {
-  
-  samples <- matrix(NA, n_iter, sum(lengths(init)))
-  acceptance <- matrix(NA, n_iter, 7)
-  colnames(samples) <- c("gamma", "beta", "phi", "alpha", "eta", 
-                         paste0("theta_", 1:(length(init$theta))), 
-                         paste0("v_", 1:(length(init$v))))
-  colnames(acceptance) <- c("gamma", "beta", "phi", "alpha", "eta", "theta", "v")
-  
-  # initialise
-  gamma <- init$gamma
-  beta  <- init$beta
-  phi   <- init$phi
-  alpha <- init$alpha
-  eta   <- init$eta
-  theta <- init$theta
-  v     <- init$v
-  
-  # some preliminary calculations
-  N <- length(times)
-  N_T <- times[N]
-  K <- length(init$theta)
-  
-  pb <- txtProgressBar(min = 0,      
-                       max = n_iter, 
-                       style = 3,    
-                       width = 50,   
-                       char = "=")   
-  
-  for (iter in 1:n_iter) {
-    
-    # recalculate stick-break weights at the start of each iteration
-    remaining <- cumprod(c(1, 1 - v))
-    w_raw <- c(v, 1)*remaining
-    w_raw[K] <- 1 - sum(w_raw[-K])
-    
-    # Gamma (Gibbs step)
-    gamma <- sample_gamma(T_max, alpha, beta, N_T, eta, theta, w_raw, times)
-    acceptance[iter, "gamma"] <- 1
-    
-    # Beta (Gibbs step)
-    beta <- sample_beta(alpha, gamma, prior_params$b_1, prior_params$b_2)
-    acceptance[iter, "beta"] <- 1
-    
-    # Phi (Gibbs step)
-    phi <- sample_phi(theta, prior_params$f_1, prior_params$f_2)
-    acceptance[iter, "phi"] <- 1
-    
-    # Alpha (Metropolis-within-Gibbs)
-    res <- mh_step(log(alpha), logpost_alpha, proposal_sds$alpha,
-                   beta = beta, gamma = gamma, w_raw = w_raw, 
-                   a_1 = prior_params$a_1, a_2 = prior_params$a_2)
-    alpha <- exp(res$value)
-    acceptance[iter, "alpha"] <- res$accept
-    
-    # Eta (Metropolis-within-Gibbs)
-    res <- mh_step(log(eta), logpost_eta, proposal_sds$eta,
-                   gamma = gamma, theta = theta, w_raw = w_raw, 
-                   nu = prior_params$nu, T_max = T_max, times = times)
-    eta <- exp(res$value)
-    acceptance[iter, "eta"] <- res$accept
-    
-    # Theta_k (Metropolis-within-Gibbs)
-    k_theta <- sample(1:K, 1, prob = w_raw)
-    res <- mh_step(log(theta[k_theta]), logpost_theta_k, proposal_sds$theta_k, 
-                   k = k_theta, gamma = gamma, eta = eta, theta = theta, 
-                   w_raw = w_raw, phi = phi, T_max = T_max, times = times)
-    theta[k_theta] <- exp(res$value)
-    acceptance[iter, "theta"] <- res$accept
-    
-    # v_k (Metropolis-within-Gibbs)
-    k_v <- sample(1:(K-1), 1, prob = w_raw[-K]/(sum(w_raw[-K])))
-    res <- mh_step(logit(v[k_v]), logpost_v_k, proposal_sds$v_k, k = k_v, 
-                   gamma = gamma, eta = eta, theta = theta, v = v, 
-                   alpha = alpha, T_max = T_max, times = times)
-    v[k_v] <- logit_inv(res$value)
-    acceptance[iter, "v"] <- res$accept
-    
-    
-    samples[iter, ] <- c(gamma, beta, phi, alpha, eta, theta, v)
-    setTxtProgressBar(pb, iter)
-  }
-  
-  close(pb)
-  acceptance_rates <- colMeans(acceptance)
-  
-  return(list(samples = samples, acceptance_rates = acceptance_rates))
-}
-```
-
-
-```{r}
+# project library, contains the `sim_hp` function used below
 library(HawkesProject)
 
-
-set.seed(6)
+# generate a random hawkes kernel from the DP construction above
+set.seed(6) # reproducibility
 gp <- gp_from_dp(alpha = 2, beta = 1, g0 = rexp, k_trunc=40, rate = 2)
 example_decay <- function(x) {
   rho <- 0.6
@@ -813,28 +587,32 @@ example_decay <- function(x) {
   vapply(x, function(xi) rho*sum(weights[thetas > xi]), numeric(1))
 }
 
+# visualise generated hawkes kernel
 x_grid <- seq(0, 2.5, length.out = 500)
 y <- example_decay(x_grid)
 plot(x_grid, y, type = "s",
      xlab = "x", ylab = "Decay",
      main = "Example Decay Function")
 
+# simulate process using generated hawkes kernel
 set.seed(456)
 simulated_process <- sim_hp(T_max = 200, lambda = 0.5, mu = example_decay)
 plot(simulated_process)
-```
 
-```{r}
+# defining the priors and proposal distributions
 prior_params <- list(a_1 = 1, a_2 = 1, f_1 = 1, f_2 = 1, r_1 = 4, r_2 = 4, nu = 0.1)
 proposal_sds <- list(lambda0 = 0.2, rho = 1, theta_k = 2, v_k = 2)
+
+# run MCMC chain (will do parallel chains later)
 n_iter <- 2000
 set.seed(6789)
 init_list <- list(lambda0 = 1, rho = 0.5, theta = runif(20, 0, 5), 
                   v = runif(19, 0, 1), alpha = 1, phi = 2)
-
 chains <- run_sampler(simulated_process$events, simulated_process$T_max, 
                       n_iter, init_list, prior_params, proposal_sds)
 ```
+
+Visualising the posterior draws of the excitation function
 
 ```{r}
 stickbreak <- function(v) {
